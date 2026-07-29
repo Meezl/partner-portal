@@ -1,0 +1,109 @@
+<?php
+
+namespace App\Http\Controllers\Admin;
+
+use App\Enums\PartnerStatus;
+use App\Enums\PaymentStatus;
+use App\Http\Controllers\Controller;
+use App\Models\Payment;
+use App\Notifications\PaymentConfirmedNotification;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Storage;
+use Inertia\Inertia;
+use Inertia\Response;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
+
+class FinanceController extends Controller
+{
+    /**
+     * List all payments with filters.
+     */
+    public function index(Request $request): Response
+    {
+        $query = Payment::with(['partner', 'invoice']);
+
+        if ($request->filled('status')) {
+            $query->where('status', $request->input('status'));
+        }
+
+        if ($request->filled('partner')) {
+            $query->where('partner_id', $request->input('partner'));
+        }
+
+        $payments = $query->latest()->paginate(20)->withQueryString();
+        $paymentCollection = $payments->getCollection();
+
+        return Inertia::render('Admin/Finance/Payments', [
+            'payments' => $paymentCollection->values()->all(),
+            'stats' => [
+                'pendingCount' => $paymentCollection
+                    ->filter(fn (Payment $payment) => $payment->status === PaymentStatus::Pending)
+                    ->count(),
+                'confirmedTotal' => (float) $paymentCollection
+                    ->filter(fn (Payment $payment) => $payment->status === PaymentStatus::Confirmed)
+                    ->sum('amount'),
+                'pendingTotal' => (float) $paymentCollection
+                    ->filter(fn (Payment $payment) => $payment->status === PaymentStatus::Pending)
+                    ->sum('amount'),
+            ],
+            'filters' => $request->only(['status', 'partner']),
+            'statuses' => PaymentStatus::cases(),
+        ]);
+    }
+
+    public function downloadProof(Payment $payment): BinaryFileResponse
+    {
+        if (! $payment->supporting_document_path || ! Storage::disk('local')->exists($payment->supporting_document_path)) {
+            abort(404, 'Supporting document not found.');
+        }
+
+        return response()->download(Storage::disk('local')->path($payment->supporting_document_path));
+    }
+
+    /**
+     * Confirm a payment.
+     */
+    public function confirm(Request $request, Payment $payment): RedirectResponse
+    {
+        $payment->loadMissing(['partner.user', 'invoice']);
+
+        $payment->update([
+            'status' => PaymentStatus::Confirmed,
+            'confirmed_by' => $request->user()->id,
+            'confirmed_at' => now(),
+        ]);
+
+        $payment->invoice?->update([
+            'status' => \App\Enums\InvoiceStatus::Paid,
+            'paid_at' => now(),
+        ]);
+
+        // Update partner status to confirmed
+        $partner = $payment->partner;
+        $partner->update([
+            'status' => PartnerStatus::Confirmed,
+            'confirmed_at' => now(),
+        ]);
+
+        // Send confirmation notification to the partner
+        if ($partner->user && $payment->invoice) {
+            Notification::send($partner->user, new PaymentConfirmedNotification($payment->invoice));
+        }
+
+        return back()->with('success', 'Payment confirmed successfully.');
+    }
+
+    /**
+     * Reject a payment.
+     */
+    public function reject(Payment $payment): RedirectResponse
+    {
+        $payment->update([
+            'status' => PaymentStatus::Failed,
+        ]);
+
+        return back()->with('success', 'Payment has been rejected.');
+    }
+}
