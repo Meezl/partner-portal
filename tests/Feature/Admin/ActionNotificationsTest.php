@@ -1,9 +1,11 @@
 <?php
 
+use App\Enums\AgreementStatus;
 use App\Enums\PartnerStatus;
 use App\Enums\PaymentStatus;
 use App\Enums\SessionStatus;
 use App\Enums\UserRole;
+use App\Models\Agreement;
 use App\Models\Conference;
 use App\Models\ConferenceSession;
 use App\Models\Invoice;
@@ -14,12 +16,15 @@ use App\Models\SessionSchedule;
 use App\Models\TimeSlot;
 use App\Models\User;
 use App\Notifications\AgendaPublishedNotification;
+use App\Notifications\AgreementSignedNotification;
 use App\Notifications\ChangeRequestSubmittedNotification;
+use App\Notifications\EmailChangedNotification;
 use App\Notifications\PasswordChangedNotification;
 use App\Notifications\PaymentRejectedNotification;
 use App\Notifications\SessionUnscheduledNotification;
 use App\Notifications\StaffAccountCreatedNotification;
 use App\Notifications\SubmissionLockedNotification;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
 
 function notifyFixture(): array
@@ -148,15 +153,19 @@ it('emails a new staff member instead of echoing their password back', function 
 it('confirms a password change to the account owner', function () {
     Notification::fake();
 
-    $user = User::factory()->create(['password' => Hash::make('current-password')]);
+    $user = User::factory()->create();
 
     $this->actingAs($user)
-        ->put(route('password.update'), [
-            'current_password' => 'current-password',
+        ->from(route('security.edit'))
+        ->put(route('user-password.update'), [
+            'current_password' => 'password',
             'password' => 'a-brand-new-password',
             'password_confirmation' => 'a-brand-new-password',
         ])
+        ->assertSessionHasNoErrors()
         ->assertSessionHas('success');
+
+    expect(Hash::check('a-brand-new-password', $user->refresh()->password))->toBeTrue();
 
     Notification::assertSentTo($user, PasswordChangedNotification::class);
 });
@@ -183,4 +192,59 @@ it('finalizes partners and sessions without fatalling, and notifies them', funct
         ->and($session->fresh()->status)->toBe(SessionStatus::Confirmed);
 
     Notification::assertSentTo($partnerUser, SubmissionLockedNotification::class);
+});
+
+it('warns the previous address when an account email is changed', function () {
+    Notification::fake();
+
+    $user = User::factory()->create(['email' => 'original@example.com']);
+
+    $this->actingAs($user)
+        ->patch(route('profile.update'), [
+            'name' => $user->name,
+            'email' => 'attacker@example.com',
+        ])
+        ->assertSessionHasNoErrors();
+
+    expect($user->fresh()->email)->toBe('attacker@example.com');
+
+    // The warning goes to the address being replaced, not the new one.
+    Notification::assertSentOnDemand(
+        EmailChangedNotification::class,
+        fn ($notification, $channels, $notifiable) => $notifiable->routes['mail'] === 'original@example.com',
+    );
+});
+
+it('does not warn when the profile changes but the email does not', function () {
+    Notification::fake();
+
+    $user = User::factory()->create(['email' => 'stable@example.com']);
+
+    $this->actingAs($user)
+        ->patch(route('profile.update'), [
+            'name' => 'A New Display Name',
+            'email' => 'stable@example.com',
+        ])
+        ->assertSessionHasNoErrors();
+
+    Notification::assertNothingSent();
+});
+
+it('tells the team when a partner signs their agreement', function () {
+    Notification::fake();
+
+    ['partner' => $partner, 'partnerUser' => $partnerUser] = notifyFixture();
+
+    Agreement::factory()->create([
+        'partner_id' => $partner->id,
+        'status' => AgreementStatus::Pending,
+    ]);
+
+    $this->actingAs($partnerUser)
+        ->post(route('partner.agreement.sign'), [
+            'signer_name' => 'A Signatory',
+            'accept_terms' => true,
+        ]);
+
+    Notification::assertSentOnDemand(AgreementSignedNotification::class);
 });

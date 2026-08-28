@@ -7,11 +7,13 @@ use App\Enums\PartnerStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Agreement;
 use App\Models\Invoice;
+use App\Notifications\AgreementSignedNotification;
 use App\Notifications\InvoiceSentNotification;
 use App\Services\AgreementGeneratorService;
 use App\Services\InvoiceGeneratorService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -83,6 +85,11 @@ class AgreementController extends Controller
 
         app(AgreementGeneratorService::class)->generateSignedCopy($agreement->fresh(['partner.packages']));
         $this->completeAgreement($request, $partner->id);
+
+        // Finance has no other prompt that an invoice is now outstanding.
+        Notification::route('mail', array_values(array_filter(
+            (array) (config('ahaic.team_emails') ?: [config('ahaic.central_email')])
+        )))->notify(new AgreementSignedNotification($agreement->load('partner')));
 
         return back()->with('success', 'Your agreement has been digitally signed and your invoice is now ready.');
     }
