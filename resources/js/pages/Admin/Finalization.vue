@@ -2,6 +2,8 @@
 import { router } from '@inertiajs/vue3';
 import { Head } from '@inertiajs/vue3';
 import { CheckCircle, XCircle, Lock, Send } from 'lucide-vue-next';
+import { computed } from 'vue';
+import BlockedActionHint from '@/components/shared/BlockedActionHint.vue';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import AdminLayout from '@/layouts/AdminLayout.vue';
@@ -20,6 +22,25 @@ const props = defineProps<{
 }>();
 
 const allReady = props.checklist.allPartnersSubmitted && props.checklist.allSessionsScheduled && props.checklist.noUnresolvedConflicts;
+
+/** Which checklist items are still failing, so the reason is not a guess. */
+const lockBlockers = computed(() => {
+    const blockers: string[] = [];
+
+    if (!props.checklist.allPartnersSubmitted) {
+        blockers.push('Not every partner has submitted yet.');
+    }
+
+    if (!props.checklist.allSessionsScheduled) {
+        blockers.push('Some sessions still have no room and time.');
+    }
+
+    if (!props.checklist.noUnresolvedConflicts) {
+        blockers.push('There are unresolved scheduling conflicts.');
+    }
+
+    return blockers;
+});
 
 const lockAll = () => {
     if (confirm('Are you sure? This will lock all partner data and sessions.')) {
@@ -68,6 +89,8 @@ const publishAgenda = () => {
                 </div>
             </CardContent>
         </Card>
+
+        <BlockedActionHint :reasons="lockBlockers" class="mb-4" />
 
         <div class="flex gap-4">
             <Button @click="lockAll" :disabled="!allReady" size="lg">

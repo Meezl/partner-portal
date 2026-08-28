@@ -10,7 +10,9 @@ import {
     PenTool,
     FileText,
 } from 'lucide-vue-next';
+import { computed } from 'vue';
 import InputError from '@/components/InputError.vue';
+import BlockedActionHint from '@/components/shared/BlockedActionHint.vue';
 import FileUpload from '@/components/shared/FileUpload.vue';
 import StatusBadge from '@/components/shared/StatusBadge.vue';
 import { Button } from '@/components/ui/button';
@@ -43,6 +45,21 @@ const signForm = useForm({
     signer_name:
         props.agreement.signed_by_name ?? props.partner.contact_person ?? '',
     accept_terms: false,
+});
+
+/** Why the signature button is unavailable. */
+const signBlockers = computed(() => {
+    const blockers: string[] = [];
+
+    if (!signForm.signer_name?.trim()) {
+        blockers.push('Type your full name to sign.');
+    }
+
+    if (!signForm.accept_terms) {
+        blockers.push('Tick the box confirming you can sign for this organization.');
+    }
+
+    return blockers;
 });
 
 function downloadAgreement() {
@@ -251,12 +268,12 @@ function getStepState(stepKey: string) {
                             >
                         </label>
                         <InputError :message="signForm.errors.accept_terms" />
+                        <BlockedActionHint :reasons="signBlockers" class="mb-3" />
                         <Button
                             class="w-full"
                             :disabled="
                                 signForm.processing ||
-                                !signForm.signer_name ||
-                                !signForm.accept_terms
+                                signBlockers.length > 0
                             "
                             @click="digitallySign"
                         >

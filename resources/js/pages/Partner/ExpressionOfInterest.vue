@@ -13,6 +13,7 @@ import { ref, watch, computed, nextTick } from 'vue';
 import { toast } from 'vue-sonner';
 import InputError from '@/components/InputError.vue';
 import PackageCard from '@/components/partner/PackageCard.vue';
+import BlockedActionHint from '@/components/shared/BlockedActionHint.vue';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -49,6 +50,7 @@ const selectedPackageId = ref<number | null>(
     props.partner?.packages?.[0]?.id ?? null,
 );
 const organizationDetailsCard = ref<HTMLElement | null>(null);
+const packageSection = ref<HTMLElement | null>(null);
 const hasSelectedPackage = computed(() => selectedPackageId.value !== null);
 
 const form = useForm({
@@ -63,6 +65,40 @@ const form = useForm({
 watch(selectedPackageId, (val) => {
     form.package_id = val;
 });
+
+/**
+ * Everything still standing between the user and a successful submit, in the
+ * order they appear on the page. The submit button mirrors the server's
+ * required fields, so the form cannot look ready and then be rejected.
+ */
+const submitBlockers = computed(() => {
+    const blockers: string[] = [];
+
+    if (!selectedPackageId.value) {
+        blockers.push('Choose a partnership package above.');
+    }
+
+    if (!form.organization_name?.trim()) {
+        blockers.push('Enter your organization name.');
+    }
+
+    if (!form.contact_person?.trim()) {
+        blockers.push('Enter a contact person.');
+    }
+
+    if (!form.email?.trim()) {
+        blockers.push('Enter a contact email address.');
+    }
+
+    return blockers;
+});
+
+function scrollToPackages() {
+    const el = (packageSection.value as { $el?: HTMLElement } | HTMLElement | null);
+    const node = (el as { $el?: HTMLElement })?.$el ?? (el as HTMLElement | null);
+
+    node?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
 
 async function selectPackage(pkg: SponsorshipPackage) {
     selectedPackageId.value = pkg.id;
@@ -162,7 +198,7 @@ function submit() {
         </Alert>
 
         <!-- Package Selection -->
-        <div>
+        <div ref="packageSection">
             <h2 class="mb-4 font-heading text-xl font-semibold">
                 Select a Package
                 <Badge
@@ -306,9 +342,15 @@ function submit() {
                     </div>
                 </form>
             </CardContent>
-            <CardFooter
-                class="flex flex-col gap-3 sm:flex-row sm:justify-between"
-            >
+            <CardFooter class="flex flex-col gap-3">
+                <BlockedActionHint
+                    :reasons="submitBlockers"
+                    :action-label="!selectedPackageId ? 'Take me to the packages' : undefined"
+                    class="w-full"
+                    @resolve="scrollToPackages"
+                />
+
+                <div class="flex w-full flex-col gap-3 sm:flex-row sm:justify-between">
                 <Button
                     variant="outline"
                     @click="saveDraft"
@@ -319,7 +361,7 @@ function submit() {
                 </Button>
                 <Button
                     @click="submit"
-                    :disabled="form.processing || !selectedPackageId"
+                    :disabled="form.processing || submitBlockers.length > 0"
                 >
                     <Send class="mr-2 h-4 w-4" />
                     {{
@@ -329,6 +371,7 @@ function submit() {
                     }}
                     <ChevronRight class="ml-1 h-4 w-4" />
                 </Button>
+                </div>
             </CardFooter>
         </Card>
 

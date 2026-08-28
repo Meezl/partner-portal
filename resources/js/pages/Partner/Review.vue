@@ -9,6 +9,7 @@ import {
     AlertTriangle,
 } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
+import BlockedActionHint from '@/components/shared/BlockedActionHint.vue';
 import ConfirmDialog from '@/components/shared/ConfirmDialog.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -46,6 +47,21 @@ const canSubmit = computed(() =>
 const missingSections = computed(() =>
     getIncompleteOnboardingSections(props.progress),
 );
+
+/** Why final submission is unavailable, named specifically. */
+const submitBlockers = computed(() => {
+    const blockers: string[] = [];
+
+    missingSections.value.forEach((section: string) => {
+        blockers.push(`Complete the ${String(section).replace(/_/g, ' ')} section.`);
+    });
+
+    if (sessions.length === 0) {
+        blockers.push('Add at least one session.');
+    }
+
+    return blockers;
+});
 </script>
 
 <template>
@@ -236,6 +252,7 @@ const missingSections = computed(() =>
                         Missing sections: {{ missingSections.join(', ') }}
                     </p>
                 </div>
+                <BlockedActionHint :reasons="submitBlockers" class="mb-3" />
                 <Button size="lg" :disabled="!canSubmit" @click="showSubmitDialog = true">
                     <Send class="mr-2 h-4 w-4" />
                     Submit All
