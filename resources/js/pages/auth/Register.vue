@@ -3,6 +3,7 @@ import { Form, Head } from '@inertiajs/vue3';
 import InputError from '@/components/InputError.vue';
 import PasswordInput from '@/components/PasswordInput.vue';
 import PublicHeader from '@/components/PublicHeader.vue';
+import BotGuardFields from '@/components/shared/BotGuardFields.vue';
 import TextLink from '@/components/TextLink.vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,6 +29,8 @@ defineOptions({
         v-slot="{ errors, processing }"
         class="flex flex-col gap-6"
     >
+        <BotGuardFields />
+
         <div class="grid gap-6">
             <div class="grid gap-2">
                 <Label for="name">Name</Label>

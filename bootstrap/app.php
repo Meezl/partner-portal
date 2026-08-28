@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\BlockAutomatedSubmissions;
 use App\Http\Middleware\EnsureNotLocked;
 use App\Http\Middleware\EnsurePartnerConfirmed;
 use App\Http\Middleware\EnsurePartnerExists;
@@ -33,6 +34,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'partner.confirmed' => EnsurePartnerConfirmed::class,
             'partner.unlocked' => EnsureNotLocked::class,
             'partner.track' => TrackPartnerActivity::class,
+            'bot.guard' => BlockAutomatedSubmissions::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
