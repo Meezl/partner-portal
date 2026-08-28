@@ -110,6 +110,24 @@ return [
     |
     */
 
+    /*
+    |--------------------------------------------------------------------------
+    | Markdown Mail Settings
+    |--------------------------------------------------------------------------
+    |
+    | The 'ahaic' theme carries the brand colours from resources/css/app.css so
+    | email matches the portal. Views live in resources/views/vendor/mail.
+    |
+    */
+
+    'markdown' => [
+        'theme' => env('MAIL_THEME', 'ahaic'),
+
+        'paths' => [
+            resource_path('views/vendor/mail'),
+        ],
+    ],
+
     'from' => [
         'address' => env('MAIL_FROM_ADDRESS', 'hello@example.com'),
         'name' => env('MAIL_FROM_NAME', env('APP_NAME', 'Laravel')),
