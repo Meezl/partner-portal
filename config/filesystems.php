@@ -60,6 +60,33 @@ return [
             'report' => false,
         ],
 
+        /*
+         * Same bucket as 's3', but objects are written world-readable and
+         * url() returns a public link. Used for partner logos and branding
+         * assets, which the browser loads directly. Keep private uploads
+         * (agreements, payment proofs, invoices) on the 's3' disk above.
+         */
+        's3_public' => [
+            'driver' => 's3',
+            'key' => env('AWS_ACCESS_KEY_ID'),
+            'secret' => env('AWS_SECRET_ACCESS_KEY'),
+            'region' => env('AWS_DEFAULT_REGION'),
+            'bucket' => env('AWS_PUBLIC_BUCKET', env('AWS_BUCKET')),
+            'url' => env('AWS_PUBLIC_URL', env('AWS_URL')),
+            'endpoint' => env('AWS_ENDPOINT'),
+            'use_path_style_endpoint' => env('AWS_USE_PATH_STYLE_ENDPOINT', false),
+            /*
+             * Leave unset (the default) when public read is granted by a bucket
+             * policy — the modern setup, since buckets created since April 2023
+             * have ACLs disabled and a 'public-read' ACL is rejected outright.
+             * Set AWS_PUBLIC_VISIBILITY=public only on a bucket where Object
+             * Ownership is still 'bucket owner preferred'.
+             */
+            'visibility' => env('AWS_PUBLIC_VISIBILITY'),
+            'throw' => false,
+            'report' => false,
+        ],
+
     ],
 
     /*

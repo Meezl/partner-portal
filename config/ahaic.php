@@ -21,6 +21,23 @@ return [
         explode(',', (string) env('AHAIC_CHANGE_REQUEST_EMAILS', env('AHAIC_CENTRAL_EMAIL', 'info@ahaic.org'))),
     ))),
     'invoice_due_days' => (int) env('AHAIC_INVOICE_DUE_DAYS', 30),
+
+    /*
+     * Where uploads and generated documents are written.
+     *
+     * Every upload names its disk through these two keys rather than relying on
+     * FILESYSTEM_DISK, because the two categories differ: 'private' holds
+     * signed agreements, payment proofs and generated invoices, which are only
+     * ever served through a controller after an authorisation check; 'public'
+     * holds partner logos and branding assets, which the browser loads directly.
+     *
+     * Defaults keep everything on the local filesystem. To move uploads to S3,
+     * set PRIVATE_FILES_DISK=s3 and PUBLIC_FILES_DISK=s3_public.
+     */
+    'disks' => [
+        'private' => env('PRIVATE_FILES_DISK', 'local'),
+        'public' => env('PUBLIC_FILES_DISK', 'public'),
+    ],
     'bank_details' => [
         'bank_name' => env('AHAIC_BANK_NAME', 'Standard Chartered Bank Limited'),
         'account_name' => env('AHAIC_ACCOUNT_NAME', 'Amref Health Africa'),

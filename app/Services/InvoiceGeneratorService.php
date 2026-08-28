@@ -54,7 +54,7 @@ class InvoiceGeneratorService
         ]);
 
         $filename = 'invoices/invoice_'.$invoice->id.'_'.time().'.pdf';
-        Storage::disk('local')->put($filename, $pdf->output());
+        Storage::disk(config('ahaic.disks.private'))->put($filename, $pdf->output());
 
         $invoice->update(['document_path' => $filename]);
 

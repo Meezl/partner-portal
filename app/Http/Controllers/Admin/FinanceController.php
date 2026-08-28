@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
-use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class FinanceController extends Controller
 {
@@ -55,13 +55,15 @@ class FinanceController extends Controller
         ]);
     }
 
-    public function downloadProof(Payment $payment): BinaryFileResponse
+    public function downloadProof(Payment $payment): StreamedResponse
     {
-        if (! $payment->supporting_document_path || ! Storage::disk('local')->exists($payment->supporting_document_path)) {
+        $disk = Storage::disk(config('ahaic.disks.private'));
+
+        if (! $payment->supporting_document_path || ! $disk->exists($payment->supporting_document_path)) {
             abort(404, 'Supporting document not found.');
         }
 
-        return response()->download(Storage::disk('local')->path($payment->supporting_document_path));
+        return $disk->download($payment->supporting_document_path);
     }
 
     /**

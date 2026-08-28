@@ -27,6 +27,11 @@
         <env name="DB_DATABASE" value=":memory:"/>
         <env name="DB_URL" value=""/>
         <env name="MAIL_MAILER" value="array"/>
+        <!-- Pin the upload disks so the suite never depends on a developer's
+             .env and can never read or write the real S3 bucket. Tests that
+             exercise S3 fake the disk explicitly. -->
+        <env name="PRIVATE_FILES_DISK" value="local"/>
+        <env name="PUBLIC_FILES_DISK" value="public"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>
         <env name="PULSE_ENABLED" value="false"/>

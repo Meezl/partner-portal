@@ -4,6 +4,7 @@ namespace App\Notifications;
 
 use App\Models\Invoice;
 use Illuminate\Bus\Queueable;
+use Illuminate\Mail\Mailables\Attachment;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
@@ -43,9 +44,13 @@ class InvoiceSentNotification extends Notification
         }
 
         if ($this->invoice->document_path) {
+            // fromStorageDisk reads through the filesystem, so this works
+            // whether the invoice lives on the local disk or in S3.
             $message->attach(
-                \Illuminate\Support\Facades\Storage::disk('local')->path($this->invoice->document_path),
-                ['as' => $this->invoice->invoice_number.'.pdf', 'mime' => 'application/pdf'],
+                Attachment::fromStorageDisk(
+                    config('ahaic.disks.private'),
+                    $this->invoice->document_path,
+                )->as($this->invoice->invoice_number.'.pdf')->withMime('application/pdf'),
             );
         }
 

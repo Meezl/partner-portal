@@ -46,7 +46,7 @@ class AgreementGeneratorService
             ? 'agreements/signed_agreement_'.$agreement->id.'_'.time().'.pdf'
             : 'agreements/agreement_'.$agreement->id.'_'.time().'.pdf';
 
-        Storage::disk('local')->put($filename, $pdf->output());
+        Storage::disk(config('ahaic.disks.private'))->put($filename, $pdf->output());
 
         $agreement->update($signed
             ? ['signed_document_path' => $filename]

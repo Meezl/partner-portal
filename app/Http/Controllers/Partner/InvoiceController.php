@@ -8,7 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
-use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class InvoiceController extends Controller
 {
@@ -50,7 +50,7 @@ class InvoiceController extends Controller
     /**
      * Download an invoice PDF.
      */
-    public function download(Request $request, Invoice $invoice): BinaryFileResponse
+    public function download(Request $request, Invoice $invoice): StreamedResponse
     {
         $partner = $request->user()->partner;
 
@@ -62,6 +62,6 @@ class InvoiceController extends Controller
             abort(404, 'Invoice document not found.');
         }
 
-        return response()->download(Storage::disk('local')->path($invoice->document_path));
+        return Storage::disk(config('ahaic.disks.private'))->download($invoice->document_path);
     }
 }

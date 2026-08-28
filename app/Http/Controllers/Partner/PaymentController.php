@@ -4,11 +4,15 @@ namespace App\Http\Controllers\Partner;
 
 use App\Enums\InvoiceStatus;
 use App\Enums\PaymentStatus;
+use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
 use App\Models\Invoice;
 use App\Models\Payment;
+use App\Models\User;
+use App\Notifications\PaymentSubmittedNotification;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Notification;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -52,7 +56,7 @@ class PaymentController extends Controller
             ->where('partner_id', $partner->id)
             ->firstOrFail();
 
-        $documentPath = $request->file('supporting_document')->store("payments/{$partner->id}", 'local');
+        $documentPath = $request->file('supporting_document')->store("payments/{$partner->id}", config('ahaic.disks.private'));
 
         $payment = Payment::create([
             'invoice_id' => $invoice->id,
@@ -65,11 +69,11 @@ class PaymentController extends Controller
             'status' => PaymentStatus::Pending,
         ]);
 
-        $financeUsers = \App\Models\User::where('role', \App\Enums\UserRole::Finance->value)->get();
+        $financeUsers = User::where('role', UserRole::Finance->value)->get();
         if ($financeUsers->isNotEmpty()) {
-            \Illuminate\Support\Facades\Notification::send(
+            Notification::send(
                 $financeUsers,
-                new \App\Notifications\PaymentSubmittedNotification($payment)
+                new PaymentSubmittedNotification($payment)
             );
         }
 

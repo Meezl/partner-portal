@@ -17,7 +17,7 @@ use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
-use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AgreementController extends Controller
 {
@@ -45,7 +45,7 @@ class AgreementController extends Controller
     /**
      * Download the agreement PDF file from storage.
      */
-    public function download(Request $request): BinaryFileResponse
+    public function download(Request $request): StreamedResponse
     {
         $partner = $request->user()->partner;
         $agreement = $partner->agreements()->latest()->first();
@@ -55,7 +55,7 @@ class AgreementController extends Controller
             abort(404, 'Agreement document not found.');
         }
 
-        return response()->download(Storage::disk('local')->path($path));
+        return Storage::disk(config('ahaic.disks.private'))->download($path);
     }
 
     /**
@@ -111,7 +111,7 @@ class AgreementController extends Controller
                 ->with('error', 'Please generate your agreement before uploading a signed copy.');
         }
 
-        $path = $request->file('signed_document')->store("agreements/{$partner->id}", 'local');
+        $path = $request->file('signed_document')->store("agreements/{$partner->id}", config('ahaic.disks.private'));
 
         $agreement->update([
             'signed_document_path' => $path,

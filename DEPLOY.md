@@ -408,11 +408,20 @@ REDIS_HOST=redis
 REDIS_PORT=6379
 
 # ── S3 uploads ──
-FILESYSTEM_DISK=s3
+# Uploads follow these two keys, NOT FILESYSTEM_DISK. Private files (signed
+# agreements, payment proofs, generated invoices) are served through a
+# controller after an auth check; public files (logos, branding) are loaded
+# directly by the browser and need public-read objects.
+# Omit both to keep everything on the container's local disk.
+PRIVATE_FILES_DISK=s3
+PUBLIC_FILES_DISK=s3_public
 AWS_ACCESS_KEY_ID=AKIAxxxxxxxx           # from §3.3
 AWS_SECRET_ACCESS_KEY=xxxxxxxx
 AWS_DEFAULT_REGION=eu-west-1
 AWS_BUCKET=ahaic-portal-uploads
+# Optional: a separate bucket for public assets. Defaults to AWS_BUCKET.
+# AWS_PUBLIC_BUCKET=ahaic-portal-public
+# AWS_PUBLIC_URL=https://cdn.example.org
 
 # ── Email (SES) ──
 MAIL_MAILER=ses

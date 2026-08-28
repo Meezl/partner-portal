@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Partner;
 
+use App\Enums\PartnerStatus;
 use App\Http\Controllers\Controller;
 use App\Models\BrandingRequirement;
 use App\Models\PartnerContact;
@@ -142,7 +143,7 @@ class OnboardingController extends Controller
 
         // Validate description word count (max 100 words)
         if (isset($validated['description']) && str_word_count($validated['description']) > 100) {
-            throw \Illuminate\Validation\ValidationException::withMessages([
+            throw ValidationException::withMessages([
                 'description' => 'Description must not exceed 100 words.',
             ]);
         }
@@ -159,8 +160,9 @@ class OnboardingController extends Controller
         ];
 
         if ($request->hasFile('logo')) {
-            $path = $request->file('logo')->store("partners/{$partner->id}/logos", 'public');
-            $updateData['logo_path'] = Storage::disk('public')->url($path);
+            $disk = config('ahaic.disks.public');
+            $path = $request->file('logo')->store("partners/{$partner->id}/logos", $disk);
+            $updateData['logo_path'] = Storage::disk($disk)->url($path);
         }
 
         $partner->update($updateData);
@@ -183,8 +185,9 @@ class OnboardingController extends Controller
         $existingAssets = $brandingRequirement?->assets ?? [];
 
         if ($request->hasFile('assets')) {
-            $path = $request->file('assets')->store("partners/{$partner->id}/branding", 'public');
-            $existingAssets[] = Storage::disk('public')->url($path);
+            $disk = config('ahaic.disks.public');
+            $path = $request->file('assets')->store("partners/{$partner->id}/branding", $disk);
+            $existingAssets[] = Storage::disk($disk)->url($path);
         }
 
         BrandingRequirement::updateOrCreate(
@@ -230,8 +233,8 @@ class OnboardingController extends Controller
 
     private function markOnboardingStarted($partner): void
     {
-        if ($partner->status === \App\Enums\PartnerStatus::Confirmed) {
-            $partner->update(['status' => \App\Enums\PartnerStatus::Onboarding]);
+        if ($partner->status === PartnerStatus::Confirmed) {
+            $partner->update(['status' => PartnerStatus::Onboarding]);
         }
     }
 }
