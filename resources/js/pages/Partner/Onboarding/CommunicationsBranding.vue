@@ -18,6 +18,7 @@ const props = defineProps<{
 }>();
 
 const form = useForm({
+    _method: 'put',
     requirements: props.branding?.requirements ?? '',
     media_contact_name: props.branding?.media_contact_name ?? '',
     media_contact_email: props.branding?.media_contact_email ?? '',
@@ -30,7 +31,7 @@ function handleAssetSelect(file: File) {
 }
 
 function submit() {
-    form.put('/partner/onboarding/communications', {
+    form.post('/partner/onboarding/communications', {
         forceFormData: true,
         preserveScroll: true,
     });

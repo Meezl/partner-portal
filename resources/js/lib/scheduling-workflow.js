@@ -17,3 +17,11 @@ export function buildScheduleBoardPath(sessionId = null) {
         ? `/admin/scheduling?session=${sessionId}`
         : '/admin/scheduling';
 }
+
+export function buildScheduleUpdatePath(sessionId) {
+    return `/admin/scheduling/sessions/${sessionId}/update-schedule`;
+}
+
+export function buildScheduleDeletePath(sessionId) {
+    return `/admin/scheduling/sessions/${sessionId}/schedule`;
+}

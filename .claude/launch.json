@@ -4,8 +4,23 @@
     {
       "name": "vite",
       "runtimeExecutable": "npx",
-      "runtimeArgs": ["vite", "--port", "5173"],
+      "runtimeArgs": [
+        "vite",
+        "--port",
+        "5173"
+      ],
       "port": 5173
+    },
+    {
+      "name": "laravel",
+      "runtimeExecutable": "php",
+      "runtimeArgs": [
+        "artisan",
+        "serve",
+        "--port",
+        "8000"
+      ],
+      "port": 8000
     }
   ]
 }

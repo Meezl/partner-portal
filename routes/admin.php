@@ -13,6 +13,7 @@ use App\Http\Controllers\Admin\ReportController;
 use App\Http\Controllers\Admin\ResourceController;
 use App\Http\Controllers\Admin\RoomController;
 use App\Http\Controllers\Admin\SchedulingController;
+use App\Http\Controllers\Admin\SessionReviewController;
 use App\Http\Controllers\Admin\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -30,6 +31,14 @@ Route::middleware(['auth', 'verified', 'role:super_admin,admin,finance,programme
     Route::get('/conferences/{conference}/packages', [ConferenceController::class, 'packages'])->name('conferences.packages');
     Route::post('/conferences/{conference}/packages', [ConferenceController::class, 'storePackage'])->name('conferences.packages.store');
     Route::put('/conferences/{conference}/packages/{package}', [ConferenceController::class, 'updatePackage'])->name('conferences.packages.update');
+
+    // Session review queue (super admin + admin + partnerships)
+    Route::middleware(['role:super_admin,admin,partnerships'])->group(function () {
+        Route::get('/sessions', [SessionReviewController::class, 'index'])->name('sessions.index');
+        Route::put('/sessions/{session}', [SessionReviewController::class, 'update'])->name('sessions.update');
+        Route::post('/sessions/{session}/approve', [SessionReviewController::class, 'approve'])->name('sessions.approve');
+        Route::post('/sessions/{session}/reject', [SessionReviewController::class, 'reject'])->name('sessions.reject');
+    });
 
     // User Directory (super admin + admin + partnerships)
     Route::middleware(['role:super_admin,admin,partnerships'])->group(function () {
@@ -62,6 +71,7 @@ Route::middleware(['auth', 'verified', 'role:super_admin,admin,finance,programme
         Route::get('/scheduling/sessions', [SchedulingController::class, 'sessions'])->name('scheduling.sessions');
         Route::post('/scheduling/sessions/{session}/assign', [SchedulingController::class, 'assignSession'])->name('scheduling.assign');
         Route::put('/scheduling/sessions/{session}/update-schedule', [SchedulingController::class, 'updateSchedule'])->name('scheduling.update');
+        Route::delete('/scheduling/sessions/{session}/schedule', [SchedulingController::class, 'destroySchedule'])->name('scheduling.destroy');
         Route::get('/scheduling/conflicts', [SchedulingController::class, 'conflicts'])->name('scheduling.conflicts');
     });
 
@@ -93,10 +103,13 @@ Route::middleware(['auth', 'verified', 'role:super_admin,admin,finance,programme
     Route::get('/agenda/partner/{partner}', [AgendaController::class, 'partnerAgenda'])->name('agenda.partner');
     Route::post('/agenda/publish', [AgendaController::class, 'publish'])->name('agenda.publish');
 
-    // Change Requests (Phase 7)
-    Route::get('/change-requests', [ChangeRequestController::class, 'index'])->name('change-requests.index');
-    Route::put('/change-requests/{changeRequest}/approve', [ChangeRequestController::class, 'approve'])->name('change-requests.approve');
-    Route::put('/change-requests/{changeRequest}/reject', [ChangeRequestController::class, 'reject'])->name('change-requests.reject');
+    // Change Requests (Phase 7) — time/room decisions belong to the partnerships
+    // and programme side of the house, not finance or communications.
+    Route::middleware(['role:super_admin,admin,partnerships,programme,pco'])->group(function () {
+        Route::get('/change-requests', [ChangeRequestController::class, 'index'])->name('change-requests.index');
+        Route::put('/change-requests/{changeRequest}/approve', [ChangeRequestController::class, 'approve'])->name('change-requests.approve');
+        Route::put('/change-requests/{changeRequest}/reject', [ChangeRequestController::class, 'reject'])->name('change-requests.reject');
+    });
 
     // Finalization (Phase 8)
     Route::middleware(['role:super_admin,admin'])->group(function () {

@@ -2,27 +2,40 @@
 
 namespace App\Http\Controllers\Partner;
 
+use App\Enums\PartnerStatus;
 use App\Enums\SessionFormat;
 use App\Enums\SessionStatus;
 use App\Http\Controllers\Controller;
 use App\Models\ConferenceSession;
-use App\Models\SessionSlot;
 use App\Services\OnboardingProgressService;
+use App\Services\SessionTimeRequestService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
-use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class SessionController extends Controller
 {
+    public function __construct(private readonly SessionTimeRequestService $timeRequests) {}
+
     public function index(Request $request): Response
     {
         $partner = $request->user()->partner;
 
-        $sessions = ConferenceSession::with('sessionSlot')
+        $sessions = ConferenceSession::with([
+            // defaultRoom so the room shows for slot-backed sessions too, not
+            // just ones falling back to the board booking.
+            'sessionSlot.defaultRoom:id,name',
+            'requestedSessionSlot.defaultRoom:id,name',
+            'pendingTimeRequest',
+            // Falls back to the board booking when the session has no slot —
+            // an admin can move a session on the board to a room/time the slot
+            // matrix does not describe, which releases the slot.
+            'schedule.room:id,name',
+            'schedule.timeSlot:id,date,start_time,end_time,label',
+        ])
             ->where('partner_id', $partner->id)
             ->latest()
             ->get();
@@ -46,7 +59,8 @@ class SessionController extends Controller
         return Inertia::render('Partner/Sessions/Create', [
             'partner' => $partner,
             'formats' => SessionFormat::cases(),
-            'availableSlots' => $this->availableSlotsFor($partner->conference_id),
+            'conference' => $partner->conference,
+            'availableSlots' => $this->timeRequests->availableSlotsFor($partner->conference_id),
         ]);
     }
 
@@ -55,9 +69,9 @@ class SessionController extends Controller
         $validated = $this->validatePayload($request);
         $partner = $request->user()->partner;
 
-        DB::transaction(function () use ($validated, $partner) {
-            $slot = $this->claimSlot($partner->conference_id, $validated['session_slot_id'] ?? null);
+        $requestedSlot = $validated['session_slot_id'] ?? null;
 
+        DB::transaction(function () use ($validated, $partner, $requestedSlot, $request) {
             $session = ConferenceSession::create([
                 'partner_id' => $partner->id,
                 'conference_id' => $partner->conference_id,
@@ -70,15 +84,18 @@ class SessionController extends Controller
                 'expected_participants' => $validated['expected_participants'] ?? null,
                 'is_open' => $validated['is_open'] ?? false,
                 'special_requirements' => $validated['special_requirements'] ?? [],
-                'session_slot_id' => $slot?->id,
                 'status' => SessionStatus::Draft,
             ]);
 
-            if ($slot) {
-                $slot->update([
-                    'claimed_by_session_id' => $session->id,
-                    'claimed_at' => now(),
-                ]);
+            // The chosen date/time is a request, not a booking: it holds the
+            // slot and waits on the partnerships team.
+            if ($requestedSlot) {
+                $this->timeRequests->requestSlot(
+                    $session,
+                    $requestedSlot,
+                    $request->user(),
+                    $validated['slot_reason'] ?? null,
+                );
             }
         });
 
@@ -86,7 +103,9 @@ class SessionController extends Controller
         $this->recalculateProgress($partner);
 
         return redirect()->route('partner.sessions.index')
-            ->with('success', 'Session created successfully.');
+            ->with('success', $requestedSlot
+                ? 'Session created. Your requested date and time has been sent to the partnerships team for approval.'
+                : 'Session created successfully.');
     }
 
     public function edit(Request $request, ConferenceSession $session): Response
@@ -99,9 +118,19 @@ class SessionController extends Controller
 
         return Inertia::render('Partner/Sessions/Edit', [
             'partner' => $partner,
-            'session' => $session->load('sessionSlot'),
+            'session' => $session->load([
+                'sessionSlot.defaultRoom:id,name',
+                'requestedSessionSlot.defaultRoom:id,name',
+                'pendingTimeRequest',
+                // The board booking, so the panel can still show a room and
+                // time when an admin placed the session somewhere the slot
+                // matrix does not describe and the slot was released.
+                'schedule.room:id,name',
+                'schedule.timeSlot:id,date,start_time,end_time,label',
+            ]),
             'formats' => SessionFormat::cases(),
-            'availableSlots' => $this->availableSlotsFor($partner->conference_id, $session->session_slot_id),
+            'conference' => $partner->conference,
+            'availableSlots' => $this->timeRequests->availableSlotsFor($partner->conference_id, $session),
         ]);
     }
 
@@ -115,26 +144,11 @@ class SessionController extends Controller
 
         $validated = $this->validatePayload($request);
 
-        DB::transaction(function () use ($validated, $session) {
-            $newSlotId = $validated['session_slot_id'] ?? null;
+        $newSlotId = $validated['session_slot_id'] ?? null;
+        $timeRequested = false;
 
-            if ($newSlotId !== $session->session_slot_id) {
-                if ($session->session_slot_id) {
-                    SessionSlot::where('id', $session->session_slot_id)
-                        ->where('claimed_by_session_id', $session->id)
-                        ->update(['claimed_by_session_id' => null, 'claimed_at' => null]);
-                }
-
-                $slot = $this->claimSlot($session->conference_id, $newSlotId);
-
-                if ($slot) {
-                    $slot->update([
-                        'claimed_by_session_id' => $session->id,
-                        'claimed_at' => now(),
-                    ]);
-                }
-            }
-
+        DB::transaction(function () use ($validated, $session, $newSlotId, $request, &$timeRequested) {
+            // Everything except date/time saves straight away.
             $session->update([
                 'title' => $validated['title'],
                 'description' => $validated['description'] ?? null,
@@ -145,15 +159,27 @@ class SessionController extends Controller
                 'expected_participants' => $validated['expected_participants'] ?? null,
                 'is_open' => $validated['is_open'] ?? false,
                 'special_requirements' => $validated['special_requirements'] ?? [],
-                'session_slot_id' => $newSlotId,
             ]);
+
+            // A different date/time opens a fresh approval request instead of
+            // moving the session outright.
+            if ($newSlotId && $newSlotId !== $session->session_slot_id) {
+                $timeRequested = (bool) $this->timeRequests->requestSlot(
+                    $session,
+                    $newSlotId,
+                    $request->user(),
+                    $validated['slot_reason'] ?? null,
+                );
+            }
         });
 
         $this->markOnboardingStarted($partner);
         $this->recalculateProgress($partner);
 
         return redirect()->route('partner.sessions.index')
-            ->with('success', 'Session updated successfully.');
+            ->with('success', $timeRequested
+                ? 'Session updated. Your new date and time has been sent to the partnerships team for approval.'
+                : 'Session updated successfully.');
     }
 
     public function destroy(Request $request, ConferenceSession $session): RedirectResponse
@@ -169,11 +195,7 @@ class SessionController extends Controller
         }
 
         DB::transaction(function () use ($session) {
-            if ($session->session_slot_id) {
-                SessionSlot::where('id', $session->session_slot_id)
-                    ->where('claimed_by_session_id', $session->id)
-                    ->update(['claimed_by_session_id' => null, 'claimed_at' => null]);
-            }
+            $this->timeRequests->releaseAll($session);
             $session->delete();
         });
 
@@ -197,58 +219,13 @@ class SessionController extends Controller
             'expected_participants' => ['nullable', 'integer', 'min:1'],
             'is_open' => ['nullable', 'boolean'],
             'session_slot_id' => ['nullable', 'integer', 'exists:session_slots,id'],
+            'slot_reason' => ['nullable', 'string', 'max:1000'],
             'special_requirements' => ['nullable', 'array'],
             'special_requirements.av_equipment' => ['nullable', 'boolean'],
             'special_requirements.translation' => ['nullable', 'boolean'],
             'special_requirements.seating_type' => ['nullable', 'string', 'max:255'],
             'special_requirements.catering' => ['nullable', 'boolean'],
         ]);
-    }
-
-    private function availableSlotsFor(int $conferenceId, ?int $includeSlotId = null)
-    {
-        return SessionSlot::with('defaultRoom:id,name')
-            ->where('conference_id', $conferenceId)
-            ->where('is_assignable', true)
-            ->where(function ($q) use ($includeSlotId) {
-                $q->whereNull('claimed_by_session_id');
-                if ($includeSlotId) {
-                    $q->orWhere('id', $includeSlotId);
-                }
-            })
-            ->orderBy('day_index')
-            ->orderBy('sort_order')
-            ->get();
-    }
-
-    /**
-     * Pessimistically claim a slot inside an open transaction.
-     */
-    private function claimSlot(int $conferenceId, ?int $slotId): ?SessionSlot
-    {
-        if (! $slotId) {
-            return null;
-        }
-
-        $slot = SessionSlot::where('id', $slotId)
-            ->where('conference_id', $conferenceId)
-            ->where('is_assignable', true)
-            ->lockForUpdate()
-            ->first();
-
-        if (! $slot) {
-            throw ValidationException::withMessages([
-                'session_slot_id' => 'The selected slot is not available.',
-            ]);
-        }
-
-        if ($slot->claimed_by_session_id !== null) {
-            throw ValidationException::withMessages([
-                'session_slot_id' => 'This slot was just claimed by another partner. Please choose another.',
-            ]);
-        }
-
-        return $slot;
     }
 
     private function recalculateProgress($partner): void
@@ -261,8 +238,8 @@ class SessionController extends Controller
 
     private function markOnboardingStarted($partner): void
     {
-        if ($partner->status === \App\Enums\PartnerStatus::Confirmed) {
-            $partner->update(['status' => \App\Enums\PartnerStatus::Onboarding]);
+        if ($partner->status === PartnerStatus::Confirmed) {
+            $partner->update(['status' => PartnerStatus::Onboarding]);
         }
     }
 }

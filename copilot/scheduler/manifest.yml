@@ -1,0 +1,40 @@
+name: scheduler
+type: Backend Service
+
+image:
+  build: Dockerfile
+
+command: ["scheduler"]
+cpu:    256
+memory: 512
+count:  1
+exec:   true
+
+variables:
+  APP_ENV: production
+  APP_DEBUG: "false"
+  APP_URL: "https://partnerships.ahaic.org"
+  ASSET_URL: "https://partnerships.ahaic.org"
+  APP_TIMEZONE: UTC
+  LOG_CHANNEL: stderr
+  LOG_LEVEL: info
+  FILESYSTEM_DISK: s3
+  CACHE_STORE: redis
+  SESSION_DRIVER: redis
+  QUEUE_CONNECTION: redis
+  DB_CONNECTION: mysql
+  DB_PORT: "3306"
+  DB_DATABASE: ahaic_portal
+  DB_USERNAME: ahaic
+  REDIS_HOST:
+    from_cfn: ahaic-production-RedisEndpoint
+  REDIS_PORT: "6379"
+  AWS_BUCKET:
+    from_cfn: ahaic-production-uploadsBucketName
+  AWS_DEFAULT_REGION: eu-west-1
+  MAIL_MAILER: ses
+  MAIL_FROM_ADDRESS: "no-reply@ahaic.org"
+  MAIL_FROM_NAME: "AHAIC Partner Portal"
+
+secrets:
+  APP_KEY: /copilot/ahaic/production/secrets/APP_KEY

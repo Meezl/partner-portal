@@ -2,11 +2,13 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Enums\InvoiceStatus;
 use App\Enums\PartnerStatus;
 use App\Enums\PaymentStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Payment;
 use App\Notifications\PaymentConfirmedNotification;
+use App\Notifications\PaymentRejectedNotification;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Notification;
@@ -76,7 +78,7 @@ class FinanceController extends Controller
         ]);
 
         $payment->invoice?->update([
-            'status' => \App\Enums\InvoiceStatus::Paid,
+            'status' => InvoiceStatus::Paid,
             'paid_at' => now(),
         ]);
 
@@ -98,12 +100,26 @@ class FinanceController extends Controller
     /**
      * Reject a payment.
      */
-    public function reject(Payment $payment): RedirectResponse
+    public function reject(Request $request, Payment $payment): RedirectResponse
     {
+        $validated = $request->validate([
+            'reason' => ['nullable', 'string', 'max:1000'],
+        ]);
+
         $payment->update([
             'status' => PaymentStatus::Failed,
         ]);
 
-        return back()->with('success', 'Payment has been rejected.');
+        // The partner is blocked until they resubmit, so they must be told.
+        $partnerUser = $payment->invoice?->partner?->user;
+
+        if ($partnerUser) {
+            $partnerUser->notify(new PaymentRejectedNotification(
+                $payment->load('invoice'),
+                $validated['reason'] ?? null,
+            ));
+        }
+
+        return back()->with('success', 'Payment has been rejected and the partner has been notified.');
     }
 }

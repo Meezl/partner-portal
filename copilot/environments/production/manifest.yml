@@ -1,0 +1,15 @@
+# The manifest for the "production" environment.
+# https://aws.github.io/copilot-cli/docs/manifest/environment/
+
+name: production
+type: Environment
+
+observability:
+  container_insights: false
+
+http:
+  public:
+    # Fill in the ACM certificate ARN once it's issued + validated
+    # (see the "Provision the certificate" section of FARGATE_DEPLOY.md).
+    certificates:
+      - arn:aws:acm:eu-west-1:952747858369:certificate/f38d08bc-d1b4-4015-ac68-a1ba8beba848

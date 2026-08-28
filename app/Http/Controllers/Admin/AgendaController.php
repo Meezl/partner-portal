@@ -7,7 +7,10 @@ use App\Models\Conference;
 use App\Models\Partner;
 use App\Models\SessionSchedule;
 use App\Models\TimeSlot;
+use App\Models\User;
+use App\Notifications\AgendaPublishedNotification;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\Notification;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -76,10 +79,18 @@ class AgendaController extends Controller
     {
         $conference = Conference::where('status', 'active')->latest()->first();
 
-        if ($conference) {
-            $conference->update(['agenda_published_at' => now()]);
+        if (! $conference) {
+            return back()->with('error', 'There is no active conference to publish.');
         }
 
-        return back()->with('success', 'Agenda has been published successfully.');
+        $conference->update(['agenda_published_at' => now()]);
+
+        // Everyone with a session in the programme needs to know it is live.
+        $recipients = User::whereHas('partner', fn ($q) => $q->where('conference_id', $conference->id))
+            ->get();
+
+        Notification::send($recipients, new AgendaPublishedNotification($conference));
+
+        return back()->with('success', "Agenda published. {$recipients->count()} partner(s) notified.");
     }
 }

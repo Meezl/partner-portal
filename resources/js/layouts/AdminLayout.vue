@@ -16,6 +16,7 @@ import {
     Package,
     BarChart3,
     Radio,
+    ClipboardCheck,
 } from 'lucide-vue-next';
 import { computed } from 'vue';
 import AppContent from '@/components/AppContent.vue';
@@ -35,8 +36,13 @@ import {
     SidebarGroup,
     SidebarGroupLabel,
 } from '@/components/ui/sidebar';
+import { Toaster } from '@/components/ui/sonner';
 import { useCurrentUrl } from '@/composables/useCurrentUrl';
+import { useFlashMessages } from '@/composables/useFlashMessages';
 import type { BreadcrumbItem, NavItem } from '@/types';
+
+// Surfaces success/error/info flashes from every admin controller action.
+useFlashMessages();
 
 withDefaults(
     defineProps<{
@@ -55,12 +61,13 @@ const { isCurrentOrParentUrl } = useCurrentUrl();
 const user = computed(() => (page.props as Record<string, unknown>).auth as { user: { name: string; role?: string } } | undefined);
 const userRole = computed(() => user.value?.user?.role ?? 'admin');
 
+/** Items may declare `roles`; without it an item is visible to every staff role. */
 interface NavGroup {
     label: string;
-    items: NavItem[];
+    items: (NavItem & { roles?: string[] })[];
 }
 
-const navGroups: NavGroup[] = [
+const allNavGroups: NavGroup[] = [
     {
         label: 'Overview',
         items: [
@@ -100,7 +107,18 @@ const navGroups: NavGroup[] = [
     {
         label: 'Management',
         items: [
-            { title: 'Change Requests', href: '/admin/change-requests', icon: ArrowLeftRight },
+            {
+                title: 'Session Review',
+                href: '/admin/sessions',
+                icon: ClipboardCheck,
+                roles: ['super_admin', 'admin', 'partnerships'],
+            },
+            {
+                title: 'Change Requests',
+                href: '/admin/change-requests',
+                icon: ArrowLeftRight,
+                roles: ['super_admin', 'admin', 'partnerships', 'programme', 'pco'],
+            },
         ],
     },
     {
@@ -118,6 +136,15 @@ const navGroups: NavGroup[] = [
         ],
     },
 ];
+
+const navGroups = computed(() =>
+    allNavGroups
+        .map((group) => ({
+            ...group,
+            items: group.items.filter((item) => !item.roles || item.roles.includes(userRole.value)),
+        }))
+        .filter((group) => group.items.length > 0),
+);
 </script>
 
 <template>
@@ -128,9 +155,7 @@ const navGroups: NavGroup[] = [
                     <SidebarMenuItem>
                         <SidebarMenuButton size="lg" as-child>
                             <Link href="/admin/dashboard">
-                                <div class="flex aspect-square size-8 items-center justify-center rounded-md bg-sidebar-primary text-sidebar-primary-foreground">
-                                    <AppLogoIcon class="size-5 fill-current text-white dark:text-black" />
-                                </div>
+                                <AppLogoIcon class="aspect-square size-8 shrink-0" />
                                 <div class="ml-1 grid flex-1 text-left text-sm">
                                     <span class="mb-0.5 truncate leading-tight font-heading font-semibold">AHAIC</span>
                                     <span class="truncate text-xs text-sidebar-foreground/60">Admin Panel</span>
@@ -183,5 +208,6 @@ const navGroups: NavGroup[] = [
                 <slot />
             </div>
         </AppContent>
+        <Toaster position="top-right" :duration="5000" rich-colors close-button />
     </AppShell>
 </template>

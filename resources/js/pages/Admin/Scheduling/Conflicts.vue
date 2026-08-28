@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import AdminLayout from '@/layouts/AdminLayout.vue';
+import { formatCalendarDate } from '@/lib/utils';
 
 defineOptions({ layout: AdminLayout });
 
@@ -50,7 +51,7 @@ const typeColors: Record<string, string> = {
 };
 
 function formatDate(dateStr: string): string {
-    return new Date(dateStr).toLocaleDateString('en-US', {
+    return formatCalendarDate(dateStr, {
         weekday: 'short',
         month: 'short',
         day: 'numeric',

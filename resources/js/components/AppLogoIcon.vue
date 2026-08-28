@@ -1,8 +1,8 @@
 <template>
     <img
-        src="/img/logo 4.jpg"
+        src="/ahaic-logo.jpg"
         alt="AHAIC logo"
-        class="object-contain"
+        class="rounded-md object-contain"
         v-bind="$attrs"
     >
 </template>

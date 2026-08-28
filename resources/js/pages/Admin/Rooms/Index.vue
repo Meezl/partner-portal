@@ -279,12 +279,12 @@ const columns = [
                             >
                                 <Checkbox
                                     :id="`format-${option.value}`"
-                                    :checked="
+                                    :model-value="
                                         form.format_suitability.includes(
                                             option.value,
                                         )
                                     "
-                                    @update:checked="
+                                    @update:model-value="
                                         toggleSuitability(
                                             option.value,
                                             Boolean($event),
@@ -317,8 +317,7 @@ const columns = [
                     <div class="flex items-center gap-2">
                         <Checkbox
                             id="is_active"
-                            :checked="form.is_active"
-                            @update:checked="form.is_active = Boolean($event)"
+                            v-model="form.is_active"
                         />
                         <Label for="is_active">Active</Label>
                     </div>

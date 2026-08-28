@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Link, router } from '@inertiajs/vue3';
-import { Plus, Pencil, Trash2, CalendarDays } from 'lucide-vue-next';
+import { Plus, Pencil, Trash2, CalendarDays, CalendarClock, Clock, MapPin } from 'lucide-vue-next';
 import { ref } from 'vue';
 import ConfirmDialog from '@/components/shared/ConfirmDialog.vue';
 import StatusBadge from '@/components/shared/StatusBadge.vue';
@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import PartnerLayout from '@/layouts/PartnerLayout.vue';
+import { parseCalendarDate } from '@/lib/utils';
 import type { Partner, ConferenceSession } from '@/types/partner';
 
 defineOptions({ layout: PartnerLayout });
@@ -26,6 +27,58 @@ function deleteSession(session: ConferenceSession) {
 
 function formatLabel(format: string) {
     return format.charAt(0).toUpperCase() + format.slice(1).replace(/_/g, ' ');
+}
+
+type TimeState = {
+    /** 'pending' | 'approved' | 'booked' — drives the badge. */
+    kind: 'pending' | 'approved' | 'booked';
+    name: string;
+    when: string;
+    room: string | null;
+};
+
+function shortDate(date: string): string {
+    return parseCalendarDate(date).toLocaleDateString(undefined, {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+    });
+}
+
+/**
+ * When a session's time comes from, in order of precedence:
+ *   1. a slot the partner has requested and is awaiting approval on,
+ *   2. the slot approved for them,
+ *   3. the room booking the programme team made on the scheduling board.
+ *
+ * The third case matters because an admin can place a session in a room and
+ * time the slot matrix does not describe, which releases the slot — without
+ * this fallback the session would look unscheduled even though it is booked.
+ */
+function timeState(session: ConferenceSession): TimeState | null {
+    const slot = session.requested_session_slot ?? session.session_slot ?? null;
+
+    if (slot) {
+        return {
+            kind: session.requested_session_slot_id ? 'pending' : 'approved',
+            name: slot.slot_code,
+            when: slot.date ? `${shortDate(slot.date)} · ${slot.time_label}` : slot.time_label,
+            room: slot.default_room?.name ?? null,
+        };
+    }
+
+    const booking = session.schedule;
+
+    if (booking?.time_slot) {
+        return {
+            kind: 'booked',
+            name: booking.time_slot.label || 'Scheduled',
+            when: `${shortDate(booking.time_slot.date)} · ${booking.time_slot.start_time.slice(0, 5)}–${booking.time_slot.end_time.slice(0, 5)}`,
+            room: booking.room?.name ?? null,
+        };
+    }
+
+    return null;
 }
 </script>
 
@@ -86,8 +139,51 @@ function formatLabel(format: string) {
                         </div>
                     </div>
                 </CardHeader>
-                <CardContent v-if="session.description">
-                    <p class="text-muted-foreground text-sm line-clamp-2">{{ session.description }}</p>
+                <CardContent class="space-y-3">
+                    <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+                        <template v-if="timeState(session)">
+                            <span class="text-muted-foreground flex items-center gap-1.5">
+                                <CalendarClock class="h-4 w-4" />
+                                {{ timeState(session)!.name }}
+                            </span>
+                            <span class="text-muted-foreground flex items-center gap-1.5">
+                                <Clock class="h-4 w-4" />
+                                {{ timeState(session)!.when }}
+                            </span>
+                            <span
+                                v-if="timeState(session)!.room"
+                                class="text-muted-foreground flex items-center gap-1.5"
+                            >
+                                <MapPin class="h-4 w-4" />
+                                {{ timeState(session)!.room }}
+                            </span>
+                            <Badge
+                                v-if="timeState(session)!.kind === 'pending'"
+                                variant="outline"
+                                class="border-amber-400 text-amber-700 dark:text-amber-400"
+                            >
+                                Time pending approval
+                            </Badge>
+                            <Badge
+                                v-else-if="timeState(session)!.kind === 'booked'"
+                                variant="outline"
+                                class="border-green-500 text-green-700 dark:text-green-400"
+                            >
+                                Scheduled by the programme team
+                            </Badge>
+                            <Badge v-else variant="outline" class="border-green-500 text-green-700 dark:text-green-400">
+                                Time approved
+                            </Badge>
+                        </template>
+                        <span v-else class="text-muted-foreground flex items-center gap-1.5">
+                            <CalendarClock class="h-4 w-4" />
+                            No date and time requested yet
+                        </span>
+                    </div>
+
+                    <p v-if="session.description" class="text-muted-foreground text-sm line-clamp-2">
+                        {{ session.description }}
+                    </p>
                 </CardContent>
             </Card>
         </div>

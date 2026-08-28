@@ -1,0 +1,66 @@
+# copilot/migrate/manifest.yml
+#
+# One-shot database migration task.
+#
+# `schedule: none` creates the job with its EventBridge rule disabled, so it
+# never fires on its own. Run it deliberately, after the image is built and
+# before (or right after) rolling the services:
+#
+#   copilot job deploy --name migrate --env production
+#   copilot job run    --name migrate --env production
+#   copilot job logs   --name migrate --env production --follow
+#
+# The web service no longer migrates on boot, so nothing else races this.
+name: migrate
+type: Scheduled Job
+
+on:
+  schedule: none
+
+image:
+  build: Dockerfile
+
+command: ["migrate"]
+
+cpu:    512
+memory: 1024
+
+# Migrations must not be retried automatically: a partially applied migration
+# should be inspected by a human, not blindly re-run.
+retries: 0
+timeout: 15m
+
+network:
+  vpc:
+    security_groups:
+      # Grants the task ingress to the Aurora cluster.
+      - from_cfn: ahaic-production-ahaicdbSecurityGroup
+
+variables:
+  APP_ENV: production
+  APP_DEBUG: "false"
+  APP_URL: "https://partnerships.ahaic.org"
+  APP_TIMEZONE: UTC
+  LOG_CHANNEL: stderr
+  LOG_LEVEL: info
+  # Redis (not array) so `migrate --isolated` takes a real distributed lock.
+  # Ingress comes from the environment security group Copilot attaches by
+  # default, so no extra security group is needed for this.
+  CACHE_STORE: redis
+  SESSION_DRIVER: array
+  QUEUE_CONNECTION: sync
+  REDIS_HOST:
+    from_cfn: ahaic-production-RedisEndpoint
+  REDIS_PORT: "6379"
+  DB_CONNECTION: mysql
+  DB_PORT: "3306"
+  DB_DATABASE: ahaic_portal
+  DB_USERNAME: ahaic
+  AWS_DEFAULT_REGION: eu-west-1
+
+secrets:
+  APP_KEY: /copilot/ahaic/production/secrets/APP_KEY
+  # JSON blob: {host, port, dbname, username, password, ...}. The entrypoint
+  # expands it into DB_HOST / DB_PASSWORD before running migrations.
+  DB_SECRET:
+    from_cfn: ahaic-production-ahaicdbAuroraSecret

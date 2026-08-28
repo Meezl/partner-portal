@@ -1,0 +1,149 @@
+Parameters:
+  App:
+    Type: String
+    Description: Your application's name.
+  Env:
+    Type: String
+    Description: The name of the environment being deployed.
+  # Customize your Aurora Serverless cluster by setting the default value of the following parameters.
+  ahaicdbDBName:
+    Type: String
+    Description: The name of the initial database to be created in the Aurora Serverless v2 cluster.
+    Default: ahaic_portal
+    # Cannot have special characters
+    # Naming constraints: https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/CHAP_Limits.html#RDS_Limits.Constraints
+  VPCID:
+    Type: String
+    Description: The ID of the VPC in which to create the Aurora Serverless v2 cluster.
+    Default: ""
+  PrivateSubnets:
+    Type: String
+    Description: The IDs of the private subnets in which to create the Aurora Serverless v2 cluster.
+    Default: ""
+
+Mappings:
+  ahaicdbEnvScalingConfigurationMap: 
+    production:
+      "DBMinCapacity": 0.5 # AllowedValues: from 0.5 through 128
+      "DBMaxCapacity": 8   # AllowedValues: from 0.5 through 128
+    
+    All:
+      "DBMinCapacity": 0.5 # AllowedValues: from 0.5 through 128
+      "DBMaxCapacity": 8   # AllowedValues: from 0.5 through 128
+
+Resources:
+  ahaicdbDBSubnetGroup:
+    Type: 'AWS::RDS::DBSubnetGroup'
+    Properties:
+      DBSubnetGroupDescription: Group of private subnets for Aurora Serverless v2 cluster.
+      SubnetIds:
+        !Split [',', !Ref PrivateSubnets]
+  
+  ahaicdbWorkloadSecurityGroup:
+    Metadata:
+      'aws:copilot:description': 'A security group for one or more workloads to access the Aurora Serverless v2 cluster ahaicdb'
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: 'The Security Group to access Aurora Serverless v2 cluster ahaicdb.'
+      VpcId: !Ref VPCID
+      Tags:
+        - Key: Name
+          Value: !Sub 'copilot-${App}-${Env}-Aurora'
+
+  ahaicdbDBClusterSecurityGroup:
+    Metadata:
+      'aws:copilot:description': 'A security group for your Aurora Serverless v2 cluster ahaicdb'
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: The Security Group for the Aurora Serverless v2 cluster.
+      VpcId: !Ref VPCID
+      Tags:
+        - Key: Name
+          Value: !Sub 'copilot-${App}-${Env}-Aurora'
+  
+  ahaicdbDBClusterSecurityGroupIngressFromWorkload:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: Ingress from one or more workloads in the environment.
+      GroupId: !Ref ahaicdbDBClusterSecurityGroup
+      IpProtocol: tcp
+      ToPort: 3306
+      FromPort: 3306
+      SourceSecurityGroupId: !Ref ahaicdbWorkloadSecurityGroup
+  
+  ahaicdbAuroraSecret:
+    Metadata:
+      'aws:copilot:description': 'A Secrets Manager secret to store your DB credentials'
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: !Sub Aurora main user secret for ${AWS::StackName}
+      GenerateSecretString:
+        SecretStringTemplate: '{"username": "admin"}'
+        GenerateStringKey: "password"
+        ExcludePunctuation: true
+        IncludeSpace: false
+        PasswordLength: 16
+  ahaicdbDBClusterParameterGroup:
+    Metadata:
+      'aws:copilot:description': 'A DB parameter group for engine configuration values'
+    Type: 'AWS::RDS::DBClusterParameterGroup'
+    Properties:
+      Description: !Ref 'AWS::StackName'
+      Family: 'aurora-mysql8.0'
+      Parameters:
+        character_set_client: 'utf8'
+  
+  ahaicdbDBCluster:
+    Metadata:
+      'aws:copilot:description': 'The ahaicdb Aurora Serverless v2 database cluster'
+    Type: 'AWS::RDS::DBCluster'
+    Properties:
+      MasterUsername:
+        !Join [ "",  [ '{{resolve:secretsmanager:', !Ref ahaicdbAuroraSecret, ":SecretString:username}}" ]]
+      MasterUserPassword:
+        !Join [ "",  [ '{{resolve:secretsmanager:', !Ref ahaicdbAuroraSecret, ":SecretString:password}}" ]]
+      DatabaseName: !Ref ahaicdbDBName
+      Engine: 'aurora-mysql'
+      EngineVersion: '8.0.mysql_aurora.3.06.0'
+      DBClusterParameterGroupName: !Ref ahaicdbDBClusterParameterGroup
+      DBSubnetGroupName: !Ref ahaicdbDBSubnetGroup
+      Port: 3306
+      VpcSecurityGroupIds:
+        - !Ref ahaicdbDBClusterSecurityGroup
+      ServerlessV2ScalingConfiguration:
+        # Replace "All" below with "!Ref Env" to set different autoscaling limits per environment.
+        MinCapacity: !FindInMap [ahaicdbEnvScalingConfigurationMap, All, DBMinCapacity]
+        MaxCapacity: !FindInMap [ahaicdbEnvScalingConfigurationMap, All, DBMaxCapacity]
+  
+  ahaicdbDBWriterInstance:
+    Metadata:
+      'aws:copilot:description': 'The ahaicdb Aurora Serverless v2 writer instance'
+    Type: 'AWS::RDS::DBInstance'
+    Properties:
+      DBClusterIdentifier: !Ref ahaicdbDBCluster
+      DBInstanceClass: db.serverless
+      Engine: 'aurora-mysql'
+      PromotionTier: 1
+      AvailabilityZone: !Select
+        - 0
+        - !GetAZs
+          Ref: AWS::Region
+
+  ahaicdbSecretAuroraClusterAttachment:
+    Type: AWS::SecretsManager::SecretTargetAttachment
+    Properties:
+      SecretId: !Ref ahaicdbAuroraSecret
+      TargetId: !Ref ahaicdbDBCluster
+      TargetType: AWS::RDS::DBCluster
+
+Outputs:
+  ahaicdbSecret:
+    Description: "The JSON secret that holds the database username and password. Fields are 'host', 'port', 'dbname', 'username', 'password', 'dbClusterIdentifier' and 'engine'"
+    Value: !Ref ahaicdbAuroraSecret
+    Export:
+      Name: !Sub ${App}-${Env}-ahaicdbAuroraSecret
+  ahaicdbSecurityGroup:
+    Description: "The security group to attach to the workload."
+    Value: !Ref ahaicdbWorkloadSecurityGroup  
+    Export:
+      Name: !Sub ${App}-${Env}-ahaicdbSecurityGroup

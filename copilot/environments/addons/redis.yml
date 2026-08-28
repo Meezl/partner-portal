@@ -1,0 +1,50 @@
+Parameters:
+  App:
+    Type: String
+    Description: Your application's name.
+  Env:
+    Type: String
+    Description: The name of the environment being deployed.
+
+Resources:
+  RedisSubnetGroup:
+    Type: AWS::ElastiCache::SubnetGroup
+    Properties:
+      Description: !Sub Redis subnets for ${App}-${Env}
+      # Copilot exports PrivateSubnets as a comma-separated string; split into a list.
+      SubnetIds: !Split
+        - ','
+        - Fn::ImportValue: !Sub ${App}-${Env}-PrivateSubnets
+
+  RedisSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Sub Redis SG for ${App}-${Env}
+      VpcId:
+        Fn::ImportValue: !Sub ${App}-${Env}-VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 6379
+          ToPort: 6379
+          SourceSecurityGroupId:
+            Fn::ImportValue: !Sub ${App}-${Env}-EnvironmentSecurityGroup
+
+  Redis:
+    Type: AWS::ElastiCache::ReplicationGroup
+    Properties:
+      ReplicationGroupDescription: !Sub ${App}-${Env} redis
+      Engine: redis
+      EngineVersion: "7.1"
+      CacheNodeType: cache.t4g.micro
+      NumCacheClusters: 1                # bump to 2 with MultiAZ for prod HA
+      AutomaticFailoverEnabled: false
+      TransitEncryptionEnabled: false
+      AtRestEncryptionEnabled: true
+      CacheSubnetGroupName: !Ref RedisSubnetGroup
+      SecurityGroupIds: [!Ref RedisSG]
+
+Outputs:
+  RedisEndpoint:
+    Value: !GetAtt Redis.PrimaryEndPoint.Address
+    Export:
+      Name: !Sub ${App}-${Env}-RedisEndpoint

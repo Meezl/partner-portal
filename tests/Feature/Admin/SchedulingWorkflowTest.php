@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\PartnerStatus;
+use App\Enums\SessionFormat;
 use App\Enums\SessionStatus;
 use App\Models\Conference;
 use App\Models\ConferenceSession;
@@ -192,7 +193,7 @@ it('prevents assigning sessions into rooms that do not fit capacity or supported
     $panelSession = ConferenceSession::factory()->submitted()->create([
         'partner_id' => $partner->id,
         'conference_id' => $conference->id,
-        'format' => \App\Enums\SessionFormat::Panel,
+        'format' => SessionFormat::Panel,
         'expected_participants' => 80,
     ]);
 
@@ -335,4 +336,184 @@ it('updates schedules, exposes conflicts, and supports resource assignments', fu
     expect($room->conference_id)->toBe($conference->id)
         ->and($room->equipment['projector'])->toBe('yes')
         ->and($room->format_suitability)->toBe(['panel', 'side_event']);
+});
+
+it('removes an assignment and returns the session to the unscheduled pool', function () {
+    Notification::fake();
+
+    ['admin' => $admin, 'session' => $session, 'roomA' => $roomA, 'slotA' => $slotA] = schedulingFixture();
+
+    $schedule = SessionSchedule::factory()->create([
+        'conference_session_id' => $session->id,
+        'room_id' => $roomA->id,
+        'time_slot_id' => $slotA->id,
+        'status' => 'scheduled',
+    ]);
+    $session->update(['status' => SessionStatus::Scheduled]);
+
+    $this->actingAs($admin)
+        ->delete(route('admin.scheduling.destroy', $session))
+        ->assertRedirect();
+
+    expect(SessionSchedule::find($schedule->id))->toBeNull()
+        ->and($session->fresh()->status)->toBe(SessionStatus::Submitted);
+
+    // The room + slot are free again.
+    $this->actingAs($admin)
+        ->post(route('admin.scheduling.assign', $session), [
+            'room_id' => $roomA->id,
+            'time_slot_id' => $slotA->id,
+        ])
+        ->assertSessionHas('success');
+});
+
+it('cascades resource assignments when an assignment is removed', function () {
+    Notification::fake();
+
+    ['admin' => $admin, 'session' => $session, 'roomA' => $roomA, 'slotA' => $slotA] = schedulingFixture();
+
+    $schedule = SessionSchedule::factory()->create([
+        'conference_session_id' => $session->id,
+        'room_id' => $roomA->id,
+        'time_slot_id' => $slotA->id,
+    ]);
+    $resource = ResourceAssignment::factory()->create([
+        'session_schedule_id' => $schedule->id,
+    ]);
+
+    $this->actingAs($admin)->delete(route('admin.scheduling.destroy', $session));
+
+    expect(ResourceAssignment::find($resource->id))->toBeNull();
+});
+
+it('errors instead of removing when the session has no schedule', function () {
+    ['admin' => $admin, 'session' => $session] = schedulingFixture();
+
+    $this->actingAs($admin)
+        ->delete(route('admin.scheduling.destroy', $session))
+        ->assertSessionHas('error');
+});
+
+it('re-checks room clashes when an existing assignment is edited', function () {
+    Notification::fake();
+
+    ['conference' => $conference, 'admin' => $admin, 'session' => $session,
+        'roomA' => $roomA, 'roomB' => $roomB, 'slotA' => $slotA, 'slotB' => $slotB] = schedulingFixture();
+
+    SessionSchedule::factory()->create([
+        'conference_session_id' => $session->id,
+        'room_id' => $roomA->id,
+        'time_slot_id' => $slotA->id,
+    ]);
+
+    // Someone else already holds roomB @ slotB.
+    $otherPartner = Partner::factory()->create([
+        'conference_id' => $conference->id,
+        'status' => PartnerStatus::Submitted,
+    ]);
+    $otherSession = ConferenceSession::factory()->submitted()->create([
+        'partner_id' => $otherPartner->id,
+        'conference_id' => $conference->id,
+    ]);
+    SessionSchedule::factory()->create([
+        'conference_session_id' => $otherSession->id,
+        'room_id' => $roomB->id,
+        'time_slot_id' => $slotB->id,
+    ]);
+
+    $this->actingAs($admin)
+        ->put(route('admin.scheduling.update', $session), [
+            'room_id' => $roomB->id,
+            'time_slot_id' => $slotB->id,
+        ])
+        ->assertSessionHas('error');
+
+    expect($session->fresh()->sessionSchedule->room_id)->toBe($roomA->id);
+});
+
+it('accepts an edit that keeps the session where it already is', function () {
+    Notification::fake();
+
+    ['admin' => $admin, 'session' => $session, 'roomA' => $roomA, 'slotA' => $slotA] = schedulingFixture();
+
+    SessionSchedule::factory()->create([
+        'conference_session_id' => $session->id,
+        'room_id' => $roomA->id,
+        'time_slot_id' => $slotA->id,
+    ]);
+
+    $this->actingAs($admin)
+        ->put(route('admin.scheduling.update', $session), [
+            'room_id' => $roomA->id,
+            'time_slot_id' => $slotA->id,
+        ])
+        ->assertSessionHas('success');
+
+    expect($session->fresh()->sessionSchedule->room_id)->toBe($roomA->id);
+});
+
+it('alerts and creates nothing for every kind of assignment conflict', function () {
+    Notification::fake();
+
+    ['conference' => $conference, 'admin' => $admin, 'partner' => $partner,
+        'session' => $session, 'roomA' => $roomA, 'roomB' => $roomB, 'slotA' => $slotA] = schedulingFixture();
+
+    SessionSchedule::factory()->create([
+        'conference_session_id' => $session->id,
+        'room_id' => $roomA->id,
+        'time_slot_id' => $slotA->id,
+    ]);
+
+    $otherPartner = Partner::factory()->create([
+        'conference_id' => $conference->id,
+        'status' => PartnerStatus::Submitted,
+    ]);
+
+    $make = fn (array $attrs = []) => ConferenceSession::factory()->submitted()->create(array_merge([
+        'partner_id' => $otherPartner->id,
+        'conference_id' => $conference->id,
+    ], $attrs));
+
+    $tinyRoom = Room::factory()->create([
+        'conference_id' => $conference->id,
+        'name' => 'Cupboard',
+        'capacity' => 2,
+        'format_suitability' => [],
+    ]);
+
+    $cases = [
+        // [session, room, expected substring of the flashed error]
+        'room already booked' => [$make(), $roomA, 'already booked'],
+        'partner double-booked' => [
+            ConferenceSession::factory()->submitted()->create([
+                'partner_id' => $partner->id,
+                'conference_id' => $conference->id,
+            ]),
+            $roomB,
+            'already has a session',
+        ],
+        'over capacity' => [$make(['expected_participants' => 500]), $tinyRoom, 'capacity'],
+    ];
+
+    foreach ($cases as $label => [$target, $room, $needle]) {
+        $before = SessionSchedule::count();
+
+        $response = $this->actingAs($admin)
+            ->post(route('admin.scheduling.assign', $target), [
+                'room_id' => $room->id,
+                'time_slot_id' => $slotA->id,
+            ]);
+
+        // The admin is told what went wrong…
+        $response->assertSessionHas('error');
+        expect(session('error'))->toContain($needle);
+
+        // …and nothing was written.
+        expect(SessionSchedule::count())->toBe($before, "case: {$label}")
+            ->and(SessionSchedule::where('conference_session_id', $target->id)->exists())->toBeFalse()
+            ->and($target->fresh()->status)->toBe(SessionStatus::Submitted);
+    }
+
+    // No partner is emailed about an assignment that never happened.
+    Notification::assertNothingSent();
 });

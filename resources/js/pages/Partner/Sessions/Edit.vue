@@ -1,37 +1,85 @@
 <script setup lang="ts">
 import { useForm } from '@inertiajs/vue3';
-import { Save, Plus, X } from 'lucide-vue-next';
+import { Save, Plus, X, CalendarClock, MapPin } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import InputError from '@/components/InputError.vue';
+import SessionSlotPicker from '@/components/shared/SessionSlotPicker.vue';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
-import { Separator } from '@/components/ui/separator';
 import PartnerLayout from '@/layouts/PartnerLayout.vue';
-import type { Partner, ConferenceSession, SessionFormat } from '@/types/partner';
+import { formatCalendarDate, parseCalendarDate } from '@/lib/utils';
+import type { Conference, Partner, ConferenceSession, SessionFormat, SessionSlot } from '@/types/partner';
 
 defineOptions({ layout: PartnerLayout });
 
-type SessionSlotOption = {
-    id: number;
-    slot_code: string;
-    slot_category: string;
-    track_label: string | null;
-    day_index: number;
-    date: string | null;
-    time_label: string;
-    default_format: string | null;
-    default_room?: { id: number; name: string } | null;
-};
-
 const props = defineProps<{
     partner: Partner;
-    session: ConferenceSession & { session_slot_id?: number | null };
-    availableSlots?: SessionSlotOption[];
+    session: ConferenceSession;
+    conference?: Conference | null;
+    availableSlots?: SessionSlot[];
 }>();
+
+const pendingSlotId = computed(() => props.session.requested_session_slot_id ?? null);
+const approvedSlotId = computed(() => props.session.session_slot_id ?? null);
+const timePending = computed(() => pendingSlotId.value !== null);
+
+const currentSlot = computed(
+    () => props.session.requested_session_slot ?? props.session.session_slot ?? null,
+);
+
+function slotSchedule(slot: SessionSlot | null): string {
+    if (!slot) {
+        return 'No date and time chosen yet';
+    }
+
+    const date = slot.date
+        ? parseCalendarDate(slot.date).toLocaleDateString(undefined, {
+              weekday: 'long',
+              month: 'long',
+              day: 'numeric',
+              year: 'numeric',
+          })
+        : null;
+
+    return date ? `${date} · ${slot.time_label}` : slot.time_label;
+}
+
+/**
+ * The room + time the programme team has booked on the scheduling board.
+ *
+ * Normally this mirrors the approved slot. It is shown on its own when the
+ * session has no slot — an admin can place a session in a room and time the
+ * slot matrix does not describe, which releases the slot, and without this the
+ * panel would claim the session is unscheduled while it is actually booked.
+ */
+const boardBooking = computed(() => {
+    const schedule = props.session.schedule;
+
+    if (!schedule?.time_slot) {
+        return null;
+    }
+
+    const slot = schedule.time_slot;
+
+    return {
+        room: schedule.room?.name ?? null,
+        when: `${parseCalendarDate(slot.date).toLocaleDateString(undefined, {
+            weekday: 'long',
+            month: 'long',
+            day: 'numeric',
+            year: 'numeric',
+        })} · ${slot.start_time.slice(0, 5)}–${slot.end_time.slice(0, 5)}`,
+        label: slot.label ?? null,
+    };
+});
+
+/** True when the board booking is the only record of this session's time. */
+const bookingOnly = computed(() => boardBooking.value !== null && currentSlot.value === null);
 
 const specialReqs = (props.session.special_requirements ?? {}) as Record<string, unknown>;
 
@@ -44,7 +92,8 @@ const form = useForm({
     target_audience: props.session.target_audience ?? '',
     expected_participants: props.session.expected_participants,
     is_open: props.session.is_open,
-    session_slot_id: (props.session.session_slot_id ?? null) as number | null,
+    session_slot_id: (props.session.requested_session_slot_id ?? props.session.session_slot_id ?? null) as number | null,
+    slot_reason: '',
     special_requirements: {
         av_equipment: (specialReqs.av_equipment as boolean) ?? false,
         translation: (specialReqs.translation as boolean) ?? false,
@@ -84,21 +133,6 @@ function removeCoHost(index: number) {
 
 function submit() {
     form.put(`/partner/sessions/${props.session.id}`);
-}
-
-const slotsByDay = computed(() => {
-    const groups: Record<number, SessionSlotOption[]> = {};
-    (props.availableSlots ?? []).forEach((s) => {
-        (groups[s.day_index] ||= []).push(s);
-    });
-    return groups;
-});
-
-function dayLabel(idx: number, slot: SessionSlotOption | undefined): string {
-    if (slot?.date) {
-        return `Day ${idx} — ${new Date(slot.date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}`;
-    }
-    return `Day ${idx}`;
 }
 
 const sessionFormats: { value: SessionFormat; label: string }[] = [
@@ -180,7 +214,7 @@ const seatingTypes = [
                         </div>
 
                         <div class="flex items-center gap-3 pt-6">
-                            <Checkbox id="is_open" :checked="form.is_open" @update:checked="form.is_open = $event" />
+                            <Checkbox id="is_open" v-model="form.is_open" />
                             <Label for="is_open" class="cursor-pointer">Open to all conference attendees</Label>
                         </div>
                     </div>
@@ -189,48 +223,79 @@ const seatingTypes = [
 
             <Card>
                 <CardHeader>
-                    <CardTitle>Preferred Session Slot</CardTitle>
+                    <CardTitle>Date &amp; Time</CardTitle>
                     <CardDescription>
-                        Pick from the available slots in the AHAIC Session Slots &amp; Booths Scheduling Matrix.
-                        Switching slots releases your current one back to the pool.
+                        Slots run across the conference dates<template v-if="conference?.start_date && conference?.end_date">
+                        ({{ formatCalendarDate(conference.start_date, { month: 'long', day: 'numeric' }) }}
+                        – {{ formatCalendarDate(conference.end_date, { month: 'long', day: 'numeric', year: 'numeric' }) }})</template>.
+                        Changing your date and time needs approval from the partnerships team — the rest of this
+                        form saves immediately.
                     </CardDescription>
                 </CardHeader>
                 <CardContent class="space-y-4">
-                    <div v-if="!availableSlots?.length" class="text-muted-foreground text-sm">
-                        No bookable slots are currently available.
-                    </div>
-                    <div v-for="(slots, idx) in slotsByDay" :key="idx" class="space-y-2">
-                        <h4 class="text-sm font-semibold">{{ dayLabel(Number(idx), slots[0]) }}</h4>
-                        <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                            <label
-                                v-for="slot in slots"
-                                :key="slot.id"
-                                class="flex cursor-pointer flex-col gap-1 rounded-md border p-3 text-sm transition hover:border-primary"
-                                :class="form.session_slot_id === slot.id ? 'border-primary bg-primary/5' : 'border-input'"
+                    <div class="bg-muted/50 flex items-start gap-3 rounded-md border p-3">
+                        <CalendarClock class="text-muted-foreground mt-0.5 h-4 w-4 shrink-0" />
+                        <div class="space-y-1 text-sm">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <span class="font-medium">
+                                    {{ bookingOnly ? (boardBooking!.label || 'Scheduled') : (currentSlot?.slot_code ?? 'Not scheduled') }}
+                                </span>
+                                <Badge v-if="timePending" variant="outline" class="border-amber-400 text-amber-700 dark:text-amber-400">
+                                    Pending approval
+                                </Badge>
+                                <Badge
+                                    v-else-if="bookingOnly"
+                                    variant="outline"
+                                    class="border-green-500 text-green-700 dark:text-green-400"
+                                >
+                                    Scheduled by the programme team
+                                </Badge>
+                                <Badge v-else-if="approvedSlotId" variant="outline" class="border-green-500 text-green-700 dark:text-green-400">
+                                    Approved
+                                </Badge>
+                            </div>
+                            <p class="text-muted-foreground">
+                                {{ bookingOnly ? boardBooking!.when : slotSchedule(currentSlot) }}
+                            </p>
+                            <p
+                                v-if="boardBooking?.room"
+                                class="text-muted-foreground flex items-center gap-1.5"
                             >
-                                <input type="radio" class="sr-only" :value="slot.id" v-model="form.session_slot_id" />
-                                <span class="font-medium">{{ slot.slot_code }}</span>
-                                <span class="text-muted-foreground text-xs">
-                                    {{ slot.time_label }}<span v-if="slot.track_label"> · {{ slot.track_label }}</span>
-                                </span>
-                                <span v-if="slot.default_room" class="text-muted-foreground text-xs">
-                                    Room: {{ slot.default_room.name }}
-                                </span>
-                                <span v-if="slot.default_format" class="text-muted-foreground text-xs capitalize">
-                                    Setup: {{ slot.default_format }}
-                                </span>
-                            </label>
+                                <MapPin class="h-3.5 w-3.5" />
+                                {{ boardBooking.room }}
+                            </p>
+                            <p v-if="bookingOnly" class="text-muted-foreground text-xs">
+                                The programme team placed this session directly, so it is not
+                                tied to a slot below. Choosing a slot will request a move.
+                            </p>
+                            <p v-if="timePending && session.session_slot" class="text-muted-foreground text-xs">
+                                Currently confirmed: {{ slotSchedule(session.session_slot) }} — this stays in place unless the request is approved.
+                            </p>
                         </div>
                     </div>
-                    <button
-                        v-if="form.session_slot_id"
-                        type="button"
-                        class="text-muted-foreground hover:text-foreground text-xs underline"
-                        @click="form.session_slot_id = null"
-                    >
-                        Clear slot preference
-                    </button>
+
+                    <SessionSlotPicker
+                        :slots="availableSlots ?? []"
+                        v-model="form.session_slot_id"
+                        :approved-slot-id="approvedSlotId"
+                        :pending-slot-id="pendingSlotId"
+                    />
                     <InputError :message="form.errors.session_slot_id" />
+
+                    <div
+                        v-if="!timePending && form.session_slot_id && form.session_slot_id !== approvedSlotId"
+                        class="space-y-2 border-t pt-4"
+                    >
+                        <Label for="slot_reason">Reason for the time change (optional)</Label>
+                        <textarea
+                            id="slot_reason"
+                            v-model="form.slot_reason"
+                            rows="2"
+                            class="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex w-full rounded-md border px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+                            placeholder="Helps the partnerships team decide, e.g. speaker availability changed..."
+                        />
+                        <InputError :message="form.errors.slot_reason" />
+                    </div>
                 </CardContent>
             </Card>
 
@@ -296,8 +361,7 @@ const seatingTypes = [
                         <div class="flex items-center gap-3">
                             <Checkbox
                                 id="av_equipment"
-                                :checked="form.special_requirements.av_equipment"
-                                @update:checked="form.special_requirements.av_equipment = $event"
+                                v-model="form.special_requirements.av_equipment"
                             />
                             <Label for="av_equipment" class="cursor-pointer">AV Equipment Required</Label>
                         </div>
@@ -305,8 +369,7 @@ const seatingTypes = [
                         <div class="flex items-center gap-3">
                             <Checkbox
                                 id="translation"
-                                :checked="form.special_requirements.translation"
-                                @update:checked="form.special_requirements.translation = $event"
+                                v-model="form.special_requirements.translation"
                             />
                             <Label for="translation" class="cursor-pointer">Translation Services</Label>
                         </div>
@@ -328,8 +391,7 @@ const seatingTypes = [
                         <div class="flex items-center gap-3">
                             <Checkbox
                                 id="catering"
-                                :checked="form.special_requirements.catering"
-                                @update:checked="form.special_requirements.catering = $event"
+                                v-model="form.special_requirements.catering"
                             />
                             <Label for="catering" class="cursor-pointer">Catering Required</Label>
                         </div>

@@ -12,6 +12,14 @@ return [
         'trim',
         explode(',', (string) env('AHAIC_TEAM_EMAILS', 'info@ahaic.org,finance@ahaic.org')),
     ))),
+    // Mailboxes copied on change-request decisions, alongside the actual
+    // admin/partnerships user accounts. Defaults to the central inbox only —
+    // the generic team_emails list includes finance, who do not own schedule
+    // decisions.
+    'change_request_emails' => array_values(array_filter(array_map(
+        'trim',
+        explode(',', (string) env('AHAIC_CHANGE_REQUEST_EMAILS', env('AHAIC_CENTRAL_EMAIL', 'info@ahaic.org'))),
+    ))),
     'invoice_due_days' => (int) env('AHAIC_INVOICE_DUE_DAYS', 30),
     'bank_details' => [
         'bank_name' => env('AHAIC_BANK_NAME', 'Standard Chartered Bank Limited'),

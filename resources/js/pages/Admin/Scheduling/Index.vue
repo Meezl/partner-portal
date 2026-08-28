@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Head, useForm } from '@inertiajs/vue3';
+import { Head, router, useForm } from '@inertiajs/vue3';
 import {
     CalendarDays,
     Plus,
@@ -7,8 +7,11 @@ import {
     MapPin,
     AlertTriangle,
     LayoutGrid,
+    Pencil,
+    Trash2,
 } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
+import ConfirmDialog from '@/components/shared/ConfirmDialog.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -41,8 +44,11 @@ import {
 } from '@/lib/room-allocation.js';
 import {
     buildScheduleAssignmentPath,
+    buildScheduleDeletePath,
+    buildScheduleUpdatePath,
     getUnscheduledSessions,
 } from '@/lib/scheduling-workflow.js';
+import { formatCalendarDate } from '@/lib/utils';
 import type {
     ConferenceSession,
     Room,
@@ -168,8 +174,115 @@ function submitAssignment() {
     );
 }
 
+/**
+ * Problems with the pending assignment, evaluated live so the admin sees them
+ * before submitting rather than getting a rejection afterwards. Mirrors the
+ * server-side guards in SchedulingController::assignmentError().
+ */
+function conflictsFor(sessionId: string, roomId: string, timeSlotId: string, ignoreScheduleId?: number): string[] {
+    const session = props.sessions.find((s) => String(s.id) === sessionId);
+    const room = props.rooms.find((r) => String(r.id) === roomId);
+    const problems: string[] = [];
+
+    if (!session || !room) {
+        return problems;
+    }
+
+    problems.push(...buildRoomFitWarnings(session, room));
+
+    if (timeSlotId) {
+        const inSlot = props.schedules.filter(
+            (sch) =>
+                String(sch.time_slot_id) === timeSlotId &&
+                sch.id !== ignoreScheduleId,
+        );
+
+        if (inSlot.some((sch) => String(sch.room_id) === roomId)) {
+            problems.push(`${room.name} is already booked for that time slot.`);
+        }
+
+        const partnerClash = inSlot.some(
+            (sch) => sch.session?.partner_id === session.partner_id,
+        );
+
+        if (partnerClash) {
+            problems.push('This partner already has a session in that time slot.');
+        }
+    }
+
+    return problems;
+}
+
+const assignConflicts = computed(() =>
+    conflictsFor(
+        assignForm.conference_session_id,
+        assignForm.room_id,
+        assignForm.time_slot_id,
+    ),
+);
+
+/* ---------- Editing and removing an existing assignment ---------- */
+
+type ScheduledCell = AllocationCell & { schedule: NonNullable<AllocationCell['schedule']> };
+
+const editingCell = ref<ScheduledCell | null>(null);
+const removingCell = ref<ScheduledCell | null>(null);
+
+const editForm = useForm({
+    room_id: '' as string,
+    time_slot_id: '' as string,
+});
+
+function openEditDialog(cell: ScheduledCell) {
+    editingCell.value = cell;
+    editForm.clearErrors();
+    editForm.room_id = String(cell.schedule.room_id ?? cell.room_id);
+    editForm.time_slot_id = String(cell.schedule.time_slot_id ?? '');
+}
+
+const editConflicts = computed(() =>
+    editingCell.value
+        ? conflictsFor(
+              String(editingCell.value.schedule.conference_session_id),
+              editForm.room_id,
+              editForm.time_slot_id,
+              editingCell.value.schedule.id,
+          )
+        : [],
+);
+
+function submitEdit() {
+    const sessionId = editingCell.value?.schedule.conference_session_id;
+
+    if (!sessionId) {
+        return;
+    }
+
+    editForm.put(buildScheduleUpdatePath(sessionId), {
+        preserveScroll: true,
+        onSuccess: () => {
+            editingCell.value = null;
+        },
+    });
+}
+
+function confirmRemove() {
+    const sessionId = removingCell.value?.schedule.conference_session_id;
+
+    if (!sessionId) {
+        return;
+    }
+
+    router.delete(buildScheduleDeletePath(sessionId), {
+        preserveScroll: true,
+        onFinish: () => {
+            removingCell.value = null;
+        },
+    });
+}
+
 function formatDate(dateStr: string): string {
-    return new Date(dateStr).toLocaleDateString('en-US', {
+    return formatCalendarDate(dateStr, {
         weekday: 'short',
         month: 'short',
         day: 'numeric',
@@ -529,6 +642,29 @@ function getPartnerColor(partnerId: number): string {
                                                     <span>{{ warning }}</span>
                                                 </div>
                                             </div>
+
+                                            <div
+                                                class="mt-3 flex items-center gap-1 border-t border-current/15 pt-2"
+                                            >
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    class="h-7 px-2 text-[11px]"
+                                                    @click="openEditDialog(cell as ScheduledCell)"
+                                                >
+                                                    <Pencil class="mr-1 h-3 w-3" />
+                                                    Edit
+                                                </Button>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    class="h-7 px-2 text-[11px] text-destructive hover:text-destructive"
+                                                    @click="removingCell = cell as ScheduledCell"
+                                                >
+                                                    <Trash2 class="mr-1 h-3 w-3" />
+                                                    Remove
+                                                </Button>
+                                            </div>
                                         </div>
                                     </template>
                                     <div
@@ -601,7 +737,7 @@ function getPartnerColor(partnerId: number): string {
             :open="showAssignDialog"
             @update:open="showAssignDialog = $event"
         >
-            <DialogContent class="sm:max-w-md">
+            <DialogContent class="sm:max-w-2xl">
                 <DialogHeader>
                     <DialogTitle>Assign Session</DialogTitle>
                     <DialogDescription>
@@ -614,7 +750,7 @@ function getPartnerColor(partnerId: number): string {
                     <div class="space-y-2">
                         <Label>Session</Label>
                         <Select v-model="assignForm.conference_session_id">
-                            <SelectTrigger>
+                            <SelectTrigger class="w-full">
                                 <SelectValue placeholder="Select a session" />
                             </SelectTrigger>
                             <SelectContent>
@@ -634,7 +770,7 @@ function getPartnerColor(partnerId: number): string {
                     <div class="space-y-2">
                         <Label>Room</Label>
                         <Select v-model="assignForm.room_id">
-                            <SelectTrigger>
+                            <SelectTrigger class="w-full">
                                 <SelectValue placeholder="Select a room" />
                             </SelectTrigger>
                             <SelectContent>
@@ -652,7 +788,7 @@ function getPartnerColor(partnerId: number): string {
                     <div class="space-y-2">
                         <Label>Time Slot</Label>
                         <Select v-model="assignForm.time_slot_id">
-                            <SelectTrigger>
+                            <SelectTrigger class="w-full">
                                 <SelectValue placeholder="Select a time slot" />
                             </SelectTrigger>
                             <SelectContent>
@@ -672,6 +808,19 @@ function getPartnerColor(partnerId: number): string {
                             </SelectContent>
                         </Select>
                     </div>
+
+                    <div
+                        v-if="assignConflicts.length"
+                        class="space-y-1 rounded-md border border-amber-400 bg-amber-50 p-3 text-xs text-amber-900"
+                    >
+                        <div class="flex items-center gap-1.5 font-medium">
+                            <AlertTriangle class="h-3.5 w-3.5" />
+                            This assignment will be rejected
+                        </div>
+                        <div v-for="problem in assignConflicts" :key="problem" class="pl-5">
+                            {{ problem }}
+                        </div>
+                    </div>
                 </div>
 
                 <DialogFooter>
@@ -683,6 +832,7 @@ function getPartnerColor(partnerId: number): string {
                             !assignForm.conference_session_id ||
                             !assignForm.room_id ||
                             !assignForm.time_slot_id ||
+                            assignConflicts.length > 0 ||
                             assignForm.processing
                         "
                         @click="submitAssignment"
@@ -692,5 +842,105 @@ function getPartnerColor(partnerId: number): string {
                 </DialogFooter>
             </DialogContent>
         </Dialog>
+
+        <!-- Edit an existing assignment -->
+        <Dialog
+            :open="editingCell !== null"
+            @update:open="(val: boolean) => { if (!val) editingCell = null }"
+        >
+            <DialogContent class="sm:max-w-2xl">
+                <DialogHeader>
+                    <DialogTitle>Move session</DialogTitle>
+                    <DialogDescription>
+                        {{ editingCell?.schedule.session?.title }} — currently in
+                        {{ editingCell?.room_name }}. The partner is emailed when
+                        the assignment changes.
+                    </DialogDescription>
+                </DialogHeader>
+
+                <div class="space-y-4 py-2">
+                    <div class="space-y-2">
+                        <Label>Room</Label>
+                        <Select v-model="editForm.room_id">
+                            <SelectTrigger class="w-full">
+                                <SelectValue placeholder="Select room" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem
+                                    v-for="room in activeRooms"
+                                    :key="room.id"
+                                    :value="String(room.id)"
+                                >
+                                    {{ room.name }} — capacity {{ room.capacity }}
+                                </SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    <div class="space-y-2">
+                        <Label>Time slot</Label>
+                        <Select v-model="editForm.time_slot_id">
+                            <SelectTrigger class="w-full">
+                                <SelectValue placeholder="Select time slot" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem
+                                    v-for="slot in timeSlots"
+                                    :key="slot.id"
+                                    :value="String(slot.id)"
+                                >
+                                    {{ formatDate(slot.date) }} ·
+                                    {{ formatTime(slot.start_time) }}–{{ formatTime(slot.end_time) }}
+                                </SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    <div
+                        v-if="editConflicts.length"
+                        class="space-y-1 rounded-md border border-amber-400 bg-amber-50 p-3 text-xs text-amber-900"
+                    >
+                        <div class="flex items-center gap-1.5 font-medium">
+                            <AlertTriangle class="h-3.5 w-3.5" />
+                            This move will be rejected
+                        </div>
+                        <div v-for="problem in editConflicts" :key="problem" class="pl-5">
+                            {{ problem }}
+                        </div>
+                    </div>
+
+                    <p v-else class="text-muted-foreground text-xs">
+                        Room clashes, partner double-bookings, capacity and format
+                        fit are all re-checked on save.
+                    </p>
+                </div>
+
+                <DialogFooter>
+                    <Button variant="outline" @click="editingCell = null">Cancel</Button>
+                    <Button
+                        :disabled="
+                            !editForm.room_id ||
+                            !editForm.time_slot_id ||
+                            editConflicts.length > 0 ||
+                            editForm.processing
+                        "
+                        @click="submitEdit"
+                    >
+                        Save changes
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+
+        <!-- Remove an assignment -->
+        <ConfirmDialog
+            :open="removingCell !== null"
+            title="Remove assignment"
+            :description="`Unassign ${removingCell?.schedule.session?.title ?? 'this session'} from ${removingCell?.room_name ?? 'its room'}? It returns to the unscheduled list and any resources assigned to this slot are dropped. The partner is not notified.`"
+            confirm-label="Remove assignment"
+            variant="destructive"
+            @confirm="confirmRemove"
+            @cancel="removingCell = null"
+        />
     </div>
 </template>

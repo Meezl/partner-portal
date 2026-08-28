@@ -6,7 +6,7 @@
     <style>
         body { font-family: sans-serif; font-size: 12pt; line-height: 1.5; color: #1a1a1a; margin: 0; padding: 20px; }
         .header { text-align: center; border-bottom: 2px solid #255325; padding-bottom: 20px; margin-bottom: 30px; }
-        .logo { max-width: 200px; }
+        .logo { width: 90px; height: 90px; margin-bottom: 12px; }
         .title { color: #255325; font-size: 24pt; margin: 10px 0; }
         .section { margin-bottom: 25px; }
         .section-title { font-weight: bold; color: #255325; font-size: 14pt; border-bottom: 1px solid #d9d0c8; padding-bottom: 5px; margin-bottom: 15px; }
@@ -22,6 +22,7 @@
 </head>
 <body>
     <div class="header">
+        <img src="{{ public_path('ahaic-logo.jpg') }}" alt="AHAIC" class="logo">
         <h1 class="title">Sponsorship Agreement</h1>
         <h2>AHAIC 2027</h2>
     </div>

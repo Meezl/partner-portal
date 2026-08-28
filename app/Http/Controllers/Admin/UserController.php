@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Notifications\StaffAccountCreatedNotification;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -29,7 +30,7 @@ class UserController extends Controller
             ->when($filters['search'] ?? null, function ($q, $term) {
                 $q->where(function ($qq) use ($term) {
                     $qq->where('name', 'like', "%{$term}%")
-                       ->orWhere('email', 'like', "%{$term}%");
+                        ->orWhere('email', 'like', "%{$term}%");
                 });
             })
             ->when(($filters['active'] ?? 'all') === 'active', fn ($q) => $q->where('is_active', true))
@@ -89,7 +90,13 @@ class UserController extends Controller
             'email_verified_at' => now(),
         ]);
 
-        return back()->with('success', "User {$user->name} created. Temporary password: {$password}");
+        // The new account holder is emailed and sets their own password through
+        // the reset flow. The generated password is deliberately not echoed back
+        // in the flash message — that would put a live credential into a toast,
+        // the browser history and any log that captures session data.
+        $user->notify(new StaffAccountCreatedNotification($request->user()));
+
+        return back()->with('success', "User {$user->name} created and emailed a link to set their password.");
     }
 
     public function update(Request $request, User $user): RedirectResponse

@@ -83,6 +83,18 @@ jobs:
                                    || echo "IMAGE=${IMAGE}" >> .env
 
             docker compose --env-file .env -f docker-compose.prod.yml pull
+
+            # Migrate BEFORE rolling the app, so the schema is never behind the
+            # code that is about to serve traffic. The app container no longer
+            # migrates on start, so this is the only place migrations run.
+            # --rm: one-shot container, removed on exit. Dependencies (redis)
+            # are started if not already up, which matters on a first deploy —
+            # `migrate --isolated` takes its lock in Redis.
+            # A non-zero exit aborts the deploy (script_stop + set -e) and
+            # leaves the previous containers serving the old image.
+            docker compose --env-file .env -f docker-compose.prod.yml \
+                run --rm migrate
+
             docker compose --env-file .env -f docker-compose.prod.yml up -d --remove-orphans
 
             # Wait for the new app container to pass its health check

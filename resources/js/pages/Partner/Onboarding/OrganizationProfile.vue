@@ -18,6 +18,7 @@ const props = defineProps<{
 }>();
 
 const form = useForm({
+    _method: 'put',
     logo: null as File | null,
     description: props.partner.description ?? '',
     social_media: {
@@ -61,7 +62,7 @@ function updateParticipants(value: string | number) {
 }
 
 function submit() {
-    form.put('/partner/onboarding/organization', {
+    form.post('/partner/onboarding/organization', {
         forceFormData: true,
         preserveScroll: true,
     });

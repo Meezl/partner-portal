@@ -1,12 +1,20 @@
 <script setup lang="ts">
 import { Link } from '@inertiajs/vue3';
 import AppLogoIcon from '@/components/AppLogoIcon.vue';
+import { Toaster } from '@/components/ui/sonner';
+import { useFlashMessages } from '@/composables/useFlashMessages';
+import { useStatusMessages } from '@/composables/useStatusMessages';
 import { home } from '@/routes';
 
 defineProps<{
     title?: string;
     description?: string;
 }>();
+
+// Auth reports through both channels: flash for redirects (e.g. "Your password
+// has been reset.") and the `status` page prop for Laravel's own auth flows.
+useFlashMessages();
+useStatusMessages();
 </script>
 
 <template>
@@ -23,9 +31,7 @@ defineProps<{
                         <div
                             class="mb-1 flex h-9 w-9 items-center justify-center rounded-md"
                         >
-                            <AppLogoIcon
-                                class="size-9 fill-current text-[var(--foreground)] dark:text-white"
-                            />
+                            <AppLogoIcon class="size-9" />
                         </div>
                         <span class="sr-only">{{ title }}</span>
                     </Link>
@@ -39,5 +45,6 @@ defineProps<{
                 <slot />
             </div>
         </div>
+        <Toaster position="top-right" :duration="5000" rich-colors close-button />
     </div>
 </template>

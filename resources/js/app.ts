@@ -1,4 +1,7 @@
 import { createInertiaApp } from '@inertiajs/vue3';
+// Toast styles. Without this the Toaster renders in the document flow instead
+// of as a fixed overlay, on every layout that mounts it.
+import 'vue-sonner/style.css';
 import { initializeTheme } from '@/composables/useAppearance';
 import AppLayout from '@/layouts/AppLayout.vue';
 import AuthLayout from '@/layouts/AuthLayout.vue';

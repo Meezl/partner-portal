@@ -3,10 +3,12 @@
 namespace App\Http\Controllers\Partner;
 
 use App\Enums\PartnerStatus;
+use App\Enums\SessionStatus;
 use App\Http\Controllers\Controller;
 use App\Notifications\PartnerSubmitted;
 use App\Notifications\SubmissionLockedNotification;
 use App\Services\OnboardingProgressService;
+use App\Services\SessionTimeRequestService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Notification;
@@ -76,11 +78,19 @@ class SubmissionController extends Controller
         ]);
 
         $partner->sessions()
-            ->where('status', \App\Enums\SessionStatus::Draft)
+            ->where('status', SessionStatus::Draft)
             ->update([
-                'status' => \App\Enums\SessionStatus::Submitted,
+                'status' => SessionStatus::Submitted,
                 'submitted_at' => now(),
             ]);
+
+        // Settle each session's time: the slot it has been holding becomes
+        // confirmed and the scheduling board booking is created from it.
+        $timeRequests = app(SessionTimeRequestService::class);
+
+        foreach ($partner->sessions()->get() as $session) {
+            $timeRequests->grantPendingOnSubmission($session);
+        }
 
         // Notify internal teams
         Notification::route('mail', config('ahaic.team_emails', [config('ahaic.central_email', 'info@ahaic.org')]))

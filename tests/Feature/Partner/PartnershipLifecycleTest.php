@@ -16,7 +16,9 @@ use App\Notifications\InterestApprovedNotification;
 use App\Notifications\InterestRejectedNotification;
 use App\Notifications\InvoiceSentNotification;
 use App\Notifications\PaymentConfirmedNotification;
+use App\Notifications\PaymentSubmittedNotification;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -280,4 +282,44 @@ it('requires a bank transfer proof document for payment submission', function ()
     ]);
 
     expect(Payment::count())->toBe(0);
+});
+
+it('stores a database notification for finance when payment proof is submitted', function () {
+    Storage::fake('local');
+
+    ['partner' => $partner] = partnerFixture([
+        'status' => PartnerStatus::PendingPayment,
+    ]);
+
+    $invoice = Invoice::factory()->create([
+        'partner_id' => $partner->id,
+        'status' => InvoiceStatus::Sent,
+    ]);
+
+    $financeUser = User::factory()->finance()->create(['role' => UserRole::Finance]);
+
+    $this->actingAs($partner->user)
+        ->post(route('partner.payment.store'), [
+            'invoice_id' => $invoice->id,
+            'amount' => $invoice->amount,
+            'payment_method' => 'bank_transfer',
+            'transaction_reference' => 'BANK-REF-DB-001',
+            'supporting_document' => UploadedFile::fake()->create('slip.pdf', 128, 'application/pdf'),
+        ])
+        ->assertRedirect(route('partner.dashboard'));
+
+    // The notification declares the 'database' channel, so the notifications
+    // table must exist and the row must name the partner correctly.
+    $stored = DB::table('notifications')
+        ->where('notifiable_id', $financeUser->id)
+        ->where('type', PaymentSubmittedNotification::class)
+        ->first();
+
+    expect($stored)->not->toBeNull();
+
+    $data = json_decode($stored->data, true);
+
+    expect($data['payment_id'])->toBe(Payment::firstOrFail()->id)
+        ->and($data['message'])->toContain($partner->organization_name)
+        ->and($data['message'])->not->toContain('A Partner');
 });

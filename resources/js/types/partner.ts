@@ -174,6 +174,22 @@ export interface Payment {
     confirmed_at: string | null;
 }
 
+export interface SessionSlot {
+    id: number;
+    conference_id: number;
+    slot_code: string;
+    slot_category: string;
+    track_label: string | null;
+    day_index: number;
+    date: string | null;
+    time_label: string;
+    start_time: string | null;
+    end_time: string | null;
+    default_format: string | null;
+    capacity_hint: number | null;
+    default_room?: { id: number; name: string } | null;
+}
+
 export interface ConferenceSession {
     id: number;
     partner_id: number;
@@ -189,6 +205,13 @@ export interface ConferenceSession {
     special_requirements: Record<string, unknown> | null;
     status: SessionStatus;
     submitted_at: string | null;
+    /** The approved slot. Null until the partnerships team signs off. */
+    session_slot_id: number | null;
+    /** A slot awaiting approval. Non-null means a time request is pending. */
+    requested_session_slot_id: number | null;
+    session_slot?: SessionSlot | null;
+    requested_session_slot?: SessionSlot | null;
+    pending_time_request?: ChangeRequest | null;
     schedule?: SessionSchedule;
     contacts?: SessionContact[];
 }
@@ -266,11 +289,16 @@ export interface ChangeRequest {
     requested_value: Record<string, unknown> | null;
     reason: string | null;
     status: ChangeRequestStatus;
+    requested_by: number | null;
+    reviewed_by: number | null;
     reviewed_at: string | null;
     resolution_notes: string | null;
     created_at: string;
     updated_at: string;
     session?: ConferenceSession;
+    partner?: Partner;
+    requested_by_user?: { id: number; name: string } | null;
+    reviewed_by_user?: { id: number; name: string } | null;
 }
 
 export interface FeedbackSurvey {

@@ -1,0 +1,64 @@
+# copilot/web/manifest.yml
+name: web
+type: Load Balanced Web Service
+
+image:
+  build: Dockerfile
+  port: 80
+
+http:
+  path: '/'
+  alias: partnerships.ahaic.org
+  healthcheck:
+    path: '/up'
+    healthy_threshold: 2
+    unhealthy_threshold: 3
+    interval: 15s
+    timeout: 5s
+    grace_period: 45s
+  redirect_to_https: true
+
+cpu:    2048     # 2 vCPU
+memory: 10240    # 10 GB
+count:
+  range: 2-6
+  cpu_percentage: 70
+exec: true
+
+command: ["web"]
+
+variables:
+  APP_ENV: production
+  APP_DEBUG: "false"
+  APP_URL: "https://partnerships.ahaic.org"
+  ASSET_URL: "https://partnerships.ahaic.org"
+  APP_TIMEZONE: UTC
+  LOG_CHANNEL: stderr
+  LOG_LEVEL: info
+  FILESYSTEM_DISK: s3
+  CACHE_STORE: redis
+  SESSION_DRIVER: redis
+  SESSION_DOMAIN: partnerships.ahaic.org
+  SESSION_SECURE_COOKIE: "true"
+  QUEUE_CONNECTION: redis
+  DB_CONNECTION: mysql
+  DB_PORT: "3306"
+  DB_DATABASE: ahaic_portal
+  DB_USERNAME: ahaic
+  REDIS_HOST:
+    from_cfn: ahaic-production-RedisEndpoint
+  REDIS_PORT: "6379"
+  AWS_BUCKET:
+    from_cfn: ahaic-production-uploadsBucketName
+  AWS_DEFAULT_REGION: eu-west-1
+  MAIL_MAILER: ses
+  MAIL_FROM_ADDRESS: "no-reply@ahaic.org"
+  MAIL_FROM_NAME: "AHAIC Partner Portal"
+
+secrets:
+  APP_KEY: /copilot/ahaic/production/secrets/APP_KEY
+
+environments:
+  production:
+    count:
+      range: 2-6

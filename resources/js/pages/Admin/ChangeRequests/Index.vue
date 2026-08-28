@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { Head, useForm, router } from '@inertiajs/vue3';
+import { Head, router } from '@inertiajs/vue3';
 import { CheckCircle, XCircle, ArrowLeftRight } from 'lucide-vue-next';
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import ConfirmDialog from '@/components/shared/ConfirmDialog.vue';
 import DataTable from '@/components/shared/DataTable.vue';
 import StatusBadge from '@/components/shared/StatusBadge.vue';
@@ -15,19 +15,38 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import AdminLayout from '@/layouts/AdminLayout.vue';
 import type { ChangeRequest, ConferenceSession, Partner } from '@/types/partner';
 
 defineOptions({ layout: AdminLayout });
 
+type Paginated<T> = { data: T[]; total: number };
+
 const props = defineProps<{
-    changeRequests: (ChangeRequest & {
-        session?: ConferenceSession;
-        partner?: Partner;
-    })[];
+    changeRequests: Paginated<ChangeRequest & { session?: ConferenceSession; partner?: Partner }>;
+    filters?: { status: string };
+    pendingCount?: number;
 }>();
+
+const rows = computed(() => props.changeRequests.data ?? []);
+
+/** Time requests carry a slot snapshot; everything else carries a free-text note. */
+function valueLabel(value: Record<string, unknown> | null | undefined): string {
+    if (!value) {
+        return '---';
+    }
+
+    if (typeof value.label === 'string') {
+        return value.slot_code ? `${value.slot_code} — ${value.label}` : value.label;
+    }
+
+    if (typeof value.note === 'string') {
+        return value.note;
+    }
+
+    return '---';
+}
 
 const approvingId = ref<number | null>(null);
 const rejectingId = ref<number | null>(null);
@@ -38,7 +57,7 @@ function approveRequest() {
 return;
 }
 
-    router.post(`/admin/change-requests/${approvingId.value}/approve`, {}, {
+    router.put(`/admin/change-requests/${approvingId.value}/approve`, {}, {
         onSuccess: () => {
  approvingId.value = null; 
 },
@@ -55,7 +74,7 @@ function rejectRequest() {
 return;
 }
 
-    router.post(`/admin/change-requests/${rejectingId.value}/reject`, {
+    router.put(`/admin/change-requests/${rejectingId.value}/reject`, {
         resolution_notes: resolutionNotes.value,
     }, {
         onSuccess: () => {
@@ -76,9 +95,10 @@ const columns = [
     { key: 'partner', label: 'Partner' },
     { key: 'session', label: 'Session' },
     { key: 'type', label: 'Type' },
+    { key: 'change', label: 'Requested change' },
     { key: 'reason', label: 'Reason' },
     { key: 'status', label: 'Status' },
-    { key: 'created_at', label: 'Date' },
+    { key: 'created_at', label: 'Submitted' },
 ];
 </script>
 
@@ -90,11 +110,11 @@ const columns = [
             <h1 class="font-heading text-2xl font-bold">Change Requests</h1>
             <Badge variant="secondary">
                 <ArrowLeftRight class="mr-1 h-3 w-3" />
-                {{ changeRequests.length }} total
+                {{ pendingCount ?? rows.length }} pending
             </Badge>
         </div>
 
-        <DataTable :columns="columns" :data="changeRequests" empty-message="No change requests.">
+        <DataTable :columns="columns" :data="rows" empty-message="No change requests.">
             <template #partner="{ item }">
                 <span class="font-medium">{{ item.partner?.organization_name ?? '---' }}</span>
             </template>
@@ -102,7 +122,15 @@ const columns = [
                 {{ item.session?.title ?? '---' }}
             </template>
             <template #type="{ item }">
-                <Badge variant="outline" class="capitalize">{{ item.type }}</Badge>
+                <Badge variant="outline" class="capitalize">{{ String(item.type).replace(/_/g, ' ') }}</Badge>
+            </template>
+            <template #change="{ item }">
+                <div class="space-y-0.5 text-sm">
+                    <div class="font-medium">{{ valueLabel(item.requested_value) }}</div>
+                    <div v-if="item.current_value" class="text-muted-foreground text-xs">
+                        from {{ valueLabel(item.current_value) }}
+                    </div>
+                </div>
             </template>
             <template #reason="{ item }">
                 <span class="max-w-[200px] truncate text-sm">{{ item.reason || '---' }}</span>
@@ -141,7 +169,7 @@ const columns = [
         <ConfirmDialog
             :open="approvingId !== null"
             title="Approve Change Request"
-            description="Are you sure you want to approve this change request? The schedule will be updated accordingly."
+            description="Approve this request? For a time change the requested slot is confirmed on the session and the partner's previous slot is released back to the pool."
             confirm-label="Approve"
             @confirm="approveRequest"
             @cancel="approvingId = null"

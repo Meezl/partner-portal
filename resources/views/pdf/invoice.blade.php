@@ -6,14 +6,13 @@
     <style>
         body { font-family: Helvetica, Arial, sans-serif; font-size: 10pt; line-height: 1.45; color: #221f1f; margin: 0; background: #efe7e0; }
         .page { background: #efe7e0; }
-        .hero { background: linear-gradient(135deg, #efe7e0 0 46%, #ffffff 46% 48%, transparent 48% 100%), linear-gradient(90deg, #efe7e0 0 45%, #f9a43b 45% 72%, #f9a43b 72% 100%); position: relative; height: 226px; overflow: hidden; }
-        .hero-pattern { position: absolute; top: 0; left: 270px; width: 160px; height: 112px; background:
-            linear-gradient(90deg, #ff3015 0 8px, transparent 8px 16px),
-            linear-gradient(#ff3015 0 8px, transparent 8px 16px);
-            background-size: 16px 16px;
-            opacity: 0.95; }
-        .hero-logo { position: absolute; left: 42px; top: 34px; width: 190px; }
-        .hero-accent { position: absolute; right: -34px; top: -18px; width: 230px; height: 230px; border-radius: 50%; background: radial-gradient(circle at 30% 40%, #3f3a36 0, #201c1b 28%, #0e0d0d 58%, #000 72%); opacity: 0.96; }
+        .hero { background: #efe7e0; position: relative; height: 226px; overflow: hidden; }
+        /* The banner is 16:9, so at full page width it renders ~447px tall.
+           The hero stays 226px and clips it to a band, which keeps the invoice
+           on a single page. A centred crop would be -110px; -85px sits higher
+           for more headroom above the portrait. Do not go below about -80px —
+           the green band starts clipping "for Change". */
+        .hero-banner { position: absolute; left: 0; top: -85px; width: 100%; }
         .hero-green-band { position: absolute; left: 0; right: 0; bottom: 0; height: 46px; background: #255325; }
         .hero-green-band:before { content: ''; position: absolute; left: 0; top: -34px; border-left: 95px solid #0a9fa5; border-top: 34px solid transparent; width: 0; height: 0; }
         .hero-green-band:after { content: ''; position: absolute; left: 0; top: -18px; width: 92px; height: 18px; background:
@@ -64,9 +63,7 @@
 
     <div class="page">
         <div class="hero">
-            <div class="hero-pattern"></div>
-            <img src="{{ public_path('ahaic-logo.svg') }}" alt="AHAIC" class="hero-logo">
-            <div class="hero-accent"></div>
+            <img src="{{ public_path('img/invoice-banner.jpg') }}" alt="AHAIC — Connected for Change" class="hero-banner">
             <div class="hero-green-band"></div>
             <div class="hero-web">www.ahaic.org</div>
         </div>

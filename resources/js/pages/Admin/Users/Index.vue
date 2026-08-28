@@ -93,7 +93,10 @@ function clearFilters() {
 }
 
 function formatDate(v: string | null): string {
-    if (!v) return '—';
+    if (!v) {
+return '—';
+}
+
     return new Date(v).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
@@ -137,18 +140,25 @@ function submit() {
     if (editing.value) {
         form.put(`/admin/users/${editing.value.id}`, {
             preserveScroll: true,
-            onSuccess: () => { showDialog.value = false; },
+            onSuccess: () => {
+ showDialog.value = false; 
+},
         });
     } else {
         form.post('/admin/users', {
             preserveScroll: true,
-            onSuccess: () => { showDialog.value = false; },
+            onSuccess: () => {
+ showDialog.value = false; 
+},
         });
     }
 }
 
 function remove(u: UserRow) {
-    if (!confirm(`Delete ${u.name}? This cannot be undone.`)) return;
+    if (!confirm(`Delete ${u.name}? This cannot be undone.`)) {
+return;
+}
+
     router.delete(`/admin/users/${u.id}`, { preserveScroll: true });
 }
 
@@ -322,7 +332,7 @@ const dialogSubmitLabel = computed(() => (editing.value ? 'Save changes' : 'Crea
                             <InputError :message="form.errors.role" />
                         </div>
                         <div class="flex items-center gap-3 pt-6">
-                            <Checkbox id="u-active" :checked="form.is_active" @update:checked="form.is_active = $event" />
+                            <Checkbox id="u-active" v-model="form.is_active" />
                             <Label for="u-active" class="cursor-pointer">Active</Label>
                         </div>
                     </div>

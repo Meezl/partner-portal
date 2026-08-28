@@ -43,14 +43,31 @@ x-app-env: &app-env
   MAIL_FROM_NAME: "AHAIC Partner Portal"
 
 services:
+  # One-shot migration task. Not started by `docker compose up` (it sits in the
+  # `migrate` profile), so scaling `app` can never trigger concurrent
+  # migrations. Run it deliberately, before bringing the app up:
+  #
+  #   docker compose -f docker-compose.prod.yml run --rm migrate
+  #
+  migrate:
+    image: ${IMAGE}
+    profiles: ["migrate"]
+    restart: "no"
+    command: ["migrate"]
+    environment:
+      <<: *app-env
+    volumes:
+      - ./data/storage:/var/www/html/storage
+    depends_on: [redis]
+    networks: [back]
+
   app:
     image: ${IMAGE}
     restart: unless-stopped
     environment:
       <<: *app-env
-      RUN_MIGRATIONS: "true"
     volumes:
-      - app-storage:/var/www/html/storage
+      - ./data/storage:/var/www/html/storage
     depends_on: [redis]
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1/up"]
@@ -66,9 +83,8 @@ services:
     command: ["queue"]
     environment:
       <<: *app-env
-      RUN_MIGRATIONS: "false"
     volumes:
-      - app-storage:/var/www/html/storage
+      - ./data/storage:/var/www/html/storage
     depends_on: [redis, app]
     networks: [back]
 
@@ -78,16 +94,16 @@ services:
     command: ["scheduler"]
     environment:
       <<: *app-env
-      RUN_MIGRATIONS: "false"
     volumes:
-      - app-storage:/var/www/html/storage
+      - ./data/storage:/var/www/html/storage
     depends_on: [redis, app]
     networks: [back]
 
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    volumes: [redis-data:/data]
+    command: ["redis-server", "--appendonly", "yes", "--save", "60", "1"]
+    volumes: [./data/redis:/data]
     networks: [back]
 
   caddy:
@@ -98,16 +114,10 @@ services:
       APP_DOMAIN: "${APP_DOMAIN}"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy-data:/data
-      - caddy-config:/config
+      - ./data/caddy:/data
+      - ./data/caddy-config:/config
     depends_on: [app]
     networks: [edge]
-
-volumes:
-  app-storage:
-  redis-data:
-  caddy-data:
-  caddy-config:
 
 networks:
   edge:

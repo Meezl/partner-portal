@@ -4,6 +4,14 @@ function formatTitle(value = '') {
         .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
+/**
+ * Reasons a session does not fit a room. Mirrors the server-side rules in
+ * RoomAllocationMatrixService::fitWarnings().
+ *
+ * @param {{expected_participants?: number|null, format?: string|null}|null|undefined} session
+ * @param {{capacity?: number|null, format_suitability?: string[]|null, name?: string}|null|undefined} room
+ * @returns {string[]}
+ */
 export function buildRoomFitWarnings(session = null, room = null) {
     if (!session || !room) {
         return [];
