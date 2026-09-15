@@ -5,18 +5,21 @@ import { Button } from '@/components/ui/button';
 
 <template>
   <Head :title="'AHAIC Partner Portal'" />
-  <header class="flex items-center justify-between px-6 py-4 bg-white/80 backdrop-blur-sm border-b border-border/50">
+  <header class="flex flex-wrap items-center justify-between gap-3 px-6 py-4 bg-white/80 backdrop-blur-sm border-b border-border/50">
     <Link href="/" class="flex items-center gap-3 transition-opacity hover:opacity-80">
       <img src="/img/logo%204.jpg" alt="AHAIC Logo" class="h-10 w-auto" />
       <span class="font-heading text-xl text-primary">AHAIC</span>
-      <span class="ml-1 text-sm text-muted-foreground">Partner Portal</span>
+      <span class="ml-1 hidden text-sm text-muted-foreground sm:inline">Partner Portal</span>
     </Link>
-    <nav class="flex items-center gap-3">
+    <nav class="flex flex-wrap items-center gap-3">
       <!-- <Link href="/" class="inline-flex items-center gap-2">
         <Button variant="outline">Home</Button>
       </Link> -->
       <Link href="/packages" class="inline-flex items-center gap-2">
         <Button variant="outline">Packages</Button>
+      </Link>
+      <Link href="/visa-letter" class="inline-flex items-center gap-2">
+        <Button variant="outline">Visa Letter</Button>
       </Link>
       <Link v-if="$page.props.auth.user" href="/dashboard" class="inline-flex items-center gap-2">
         <Button variant="default">Dashboard</Button>

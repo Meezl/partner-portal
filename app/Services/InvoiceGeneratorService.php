@@ -38,9 +38,7 @@ class InvoiceGeneratorService
                 'billing_address' => $partner->billing_address,
                 'tax_details' => $partner->tax_details,
                 'event_name' => $conference?->name ?? 'AHAIC',
-                'event_dates' => $conference
-                    ? $conference->start_date?->format('F j').' - '.$conference->end_date?->format('j, Y')
-                    : null,
+                'event_dates' => $conference?->dateRange(),
                 'conference_year' => $conference?->year,
             ],
             'status' => InvoiceStatus::Sent,

@@ -29,6 +29,35 @@ class Conference extends Model
         ];
     }
 
+    /**
+     * The conference dates as one range: "March 2 – 5, 2027", "February 28 –
+     * March 3, 2027", or "December 30, 2026 – January 2, 2027". Only as much of
+     * the end date is repeated as differs from the start.
+     */
+    public function dateRange(): ?string
+    {
+        $start = $this->start_date;
+        $end = $this->end_date;
+
+        if (! $start || ! $end) {
+            return null;
+        }
+
+        if ($start->isSameDay($end)) {
+            return $start->format('F j, Y');
+        }
+
+        if (! $start->isSameYear($end)) {
+            return $start->format('F j, Y').' – '.$end->format('F j, Y');
+        }
+
+        if (! $start->isSameMonth($end)) {
+            return $start->format('F j').' – '.$end->format('F j, Y');
+        }
+
+        return $start->format('F j').' – '.$end->format('j, Y');
+    }
+
     public function packages(): HasMany
     {
         return $this->hasMany(SponsorshipPackage::class);

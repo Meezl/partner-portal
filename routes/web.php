@@ -2,6 +2,7 @@
 
 use App\Enums\UserRole;
 use App\Http\Controllers\PackageController;
+use App\Http\Controllers\VisaLetterController;
 use Illuminate\Support\Facades\Route;
 use Laravel\Fortify\Features;
 
@@ -12,6 +13,13 @@ Route::inertia('/', 'Welcome', [
 // Public package browsing
 Route::get('/packages', [PackageController::class, 'index'])->name('packages.index');
 Route::get('/packages/{package:slug}', [PackageController::class, 'show'])->name('packages.show');
+
+// Public visa invitation letters. Throttle runs before the bot guard so that
+// rejected bot attempts still count against the address.
+Route::get('/visa-letter', [VisaLetterController::class, 'create'])->name('visa-letter.create');
+Route::post('/visa-letter', [VisaLetterController::class, 'store'])
+    ->middleware(['throttle:visa-letter', 'bot.guard'])
+    ->name('visa-letter.store');
 
 Route::middleware(['auth'])->group(function () {
     Route::get('dashboard', function () {
