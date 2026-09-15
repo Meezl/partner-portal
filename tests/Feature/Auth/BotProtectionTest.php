@@ -2,14 +2,15 @@
 
 use App\Http\Middleware\BlockAutomatedSubmissions;
 use App\Models\User;
+use Illuminate\Support\Facades\Crypt;
 
 const HONEYPOT = BlockAutomatedSubmissions::HONEYPOT;
 const TIMESTAMP = BlockAutomatedSubmissions::TIMESTAMP;
 
-/** A timestamp far enough in the past to look like a human filling a form. */
+/** A token for a form rendered long enough ago to look like a human filling it. */
 function humanTimestamp(): string
 {
-    return (string) ((now()->timestamp - 30) * 1000);
+    return BlockAutomatedSubmissions::issueToken(now()->subSeconds(30));
 }
 
 it('lets a real person log in', function () {
@@ -43,7 +44,7 @@ it('blocks a login submitted faster than a human could type', function () {
     $this->post('/login', [
         'email' => 'real@example.com',
         'password' => 'password',
-        TIMESTAMP => (string) (now()->timestamp * 1000),
+        TIMESTAMP => BlockAutomatedSubmissions::issueToken(),
     ])->assertSessionHasErrors(HONEYPOT);
 
     $this->assertGuest();
@@ -68,7 +69,7 @@ it('blocks an instant registration', function () {
         'email' => 'fast@example.com',
         'password' => 'password123',
         'password_confirmation' => 'password123',
-        TIMESTAMP => (string) (now()->timestamp * 1000),
+        TIMESTAMP => BlockAutomatedSubmissions::issueToken(),
     ])->assertSessionHasErrors(HONEYPOT);
 
     expect(User::where('email', 'fast@example.com')->exists())->toBeFalse();
@@ -97,6 +98,46 @@ it('does not lock out a client that sends no timestamp at all', function () {
     ])->assertRedirect();
 
     $this->assertAuthenticatedAs($user);
+});
+
+it('times the form on the server clock, not the visitor\'s', function () {
+    // The token was issued by the server when the page rendered. Whatever the
+    // visitor's device clock says plays no part, so a phone running minutes
+    // fast or slow is timed correctly.
+    $user = User::factory()->create(['email' => 'skewed@example.com']);
+    $token = BlockAutomatedSubmissions::issueToken();
+
+    $this->travel(5)->seconds();
+
+    $this->post('/login', [
+        'email' => 'skewed@example.com',
+        'password' => 'password',
+        TIMESTAMP => $token,
+    ])->assertRedirect();
+
+    $this->assertAuthenticatedAs($user);
+});
+
+it('ignores a timestamp the server did not issue', function () {
+    // A raw client clock value (the old format) or a forged stamp cannot be
+    // trusted either way, so it is treated as absent rather than as proof of
+    // anything; the honeypot still applies.
+    $user = User::factory()->create(['email' => 'forged@example.com']);
+
+    $this->post('/login', [
+        'email' => 'forged@example.com',
+        'password' => 'password',
+        TIMESTAMP => (string) (now()->timestamp * 1000),
+    ])->assertRedirect();
+
+    $this->assertAuthenticatedAs($user);
+});
+
+it('shares a render-time token with every page', function () {
+    $this->get('/login')->assertInertia(fn ($page) => $page->where(
+        'botGuardToken',
+        fn (string $token) => Crypt::decryptString($token) === (string) now()->timestamp,
+    ));
 });
 
 it('rate limits repeated registration attempts from one address', function () {

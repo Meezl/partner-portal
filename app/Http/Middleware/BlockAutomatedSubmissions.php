@@ -2,8 +2,11 @@
 
 namespace App\Http\Middleware;
 
+use Carbon\CarbonInterface;
 use Closure;
+use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Validation\ValidationException;
@@ -18,9 +21,12 @@ use Symfony\Component\HttpFoundation\Response;
  *  1. A honeypot field that is off-screen and skipped by the keyboard. A person
  *     never sees it, so any value in it came from something filling every input
  *     it could find.
- *  2. How long the form was on screen. The field is planted when the page
- *     renders; a submission arriving faster than a human could physically type
- *     was not typed.
+ *  2. How long the form was on screen. The server stamps the render time into
+ *     an encrypted token (shared with every page as `botGuardToken`); a
+ *     submission arriving faster than a human could physically type was not
+ *     typed. Both ends of the measurement are the server's clock, so a visitor
+ *     whose device clock is wrong is timed correctly, and the encryption stops
+ *     a script from back-dating the stamp.
  *
  * Failures are reported as an ordinary validation error on the honeypot field,
  * which is not rendered — a bot learns nothing about why it was refused.
@@ -30,7 +36,7 @@ class BlockAutomatedSubmissions
     /** Name of the off-screen field. Deliberately plausible to a scraper. */
     public const HONEYPOT = 'website_url';
 
-    /** Name of the field carrying the render time. */
+    /** Name of the field carrying the encrypted render-time token. */
     public const TIMESTAMP = 'form_loaded_at';
 
     /** Nobody completes a real sign-up form in under this many seconds. */
@@ -38,6 +44,14 @@ class BlockAutomatedSubmissions
 
     /** New accounts allowed per minute from one address. */
     private const REGISTRATIONS_PER_MINUTE = 3;
+
+    /**
+     * An encrypted stamp of when a form was rendered, for the page to send back.
+     */
+    public static function issueToken(?CarbonInterface $renderedAt = null): string
+    {
+        return Crypt::encryptString((string) ($renderedAt ?? now())->timestamp);
+    }
 
     public function handle(Request $request, Closure $next): Response
     {
@@ -62,20 +76,40 @@ class BlockAutomatedSubmissions
             $this->reject($request, 'honeypot filled');
         }
 
-        $loadedAt = $request->input(self::TIMESTAMP);
+        $renderedAt = $this->renderedAt($request->input(self::TIMESTAMP));
 
-        // Absent timestamp is not treated as a failure: a legitimate client
-        // with a cached page or a non-JS flow would have none, and locking
-        // those people out is worse than letting a slow bot through.
-        if (is_numeric($loadedAt)) {
-            $elapsed = now()->timestamp - ((int) $loadedAt / 1000);
+        // An absent or unreadable token is not treated as a failure: a
+        // legitimate client with a cached page, a non-JS flow, or a page
+        // rendered before a deploy would have none, and locking those people
+        // out is worse than letting a slow bot through. Rejecting a garbled
+        // token would add nothing anyway, since a bot could just omit it.
+        if ($renderedAt !== null) {
+            $elapsed = now()->timestamp - $renderedAt;
 
             if ($elapsed < self::MIN_SECONDS) {
-                $this->reject($request, 'submitted in '.round($elapsed, 2).'s');
+                $this->reject($request, 'submitted in '.$elapsed.'s');
             }
         }
 
         return $next($request);
+    }
+
+    /**
+     * The server time the form was rendered, or null without a valid token.
+     */
+    private function renderedAt(mixed $token): ?int
+    {
+        if (! is_string($token) || $token === '') {
+            return null;
+        }
+
+        try {
+            $timestamp = Crypt::decryptString($token);
+        } catch (DecryptException) {
+            return null;
+        }
+
+        return ctype_digit($timestamp) ? (int) $timestamp : null;
     }
 
     private function reject(Request $request, string $signal): never

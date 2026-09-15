@@ -50,6 +50,8 @@ class HandleInertiaRequests extends Middleware
                 'error' => fn () => $request->session()->get('error'),
                 'info' => fn () => $request->session()->get('info'),
             ],
+            // Render-time stamp for BotGuardFields; see BlockAutomatedSubmissions.
+            'botGuardToken' => fn () => BlockAutomatedSubmissions::issueToken(),
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
         ];
     }
