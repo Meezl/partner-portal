@@ -92,3 +92,18 @@ it('refuses letters when no conference is active', function () {
         ->assertRedirect()
         ->assertSessionHas('error');
 });
+
+it('is signed by the configured signatory', function () {
+    $conference = Conference::factory()->active()->create();
+
+    $html = view('pdf.visa-letter', [
+        'name' => 'Amina Njeri',
+        'passportNumber' => 'AK1234567',
+        'conference' => $conference,
+    ])->render();
+
+    expect($html)
+        ->toContain('Corazon Aquino')
+        ->toContain('Director Partnerships')
+        ->not->toContain('Desta Lakew');
+});

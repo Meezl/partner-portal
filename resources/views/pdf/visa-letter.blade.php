@@ -56,10 +56,10 @@
 
         <div class="signoff">
             Yours sincerely,<br>
-            <img src="{{ public_path('img/visa-signature.png') }}" alt="Signature"><br>
-            <strong>Desta Lakew, MPH</strong><br>
-            Group Partnerships and External Affairs Director<br>
-            Amref Health Africa
+            <img src="{{ public_path(config('ahaic.visa_signatory.signature')) }}" alt="Signature"><br>
+            <strong>{{ config('ahaic.visa_signatory.name') }}</strong><br>
+            {{ config('ahaic.visa_signatory.title') }}<br>
+            {{ config('ahaic.visa_signatory.organization') }}
         </div>
     </div>
 

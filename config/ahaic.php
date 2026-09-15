@@ -23,6 +23,19 @@ return [
     'invoice_due_days' => (int) env('AHAIC_INVOICE_DUE_DAYS', 30),
 
     /*
+     * Who signs the public visa invitation letter. The signature image is a
+     * generic placeholder until the signatory provides their own: replace
+     * public/img/visa-signature.jpg (keep it a JPEG — see
+     * PdfTemplateImagesTest) or point `signature` at a new file.
+     */
+    'visa_signatory' => [
+        'name' => env('AHAIC_VISA_SIGNATORY_NAME', 'Corazon Aquino'),
+        'title' => env('AHAIC_VISA_SIGNATORY_TITLE', 'Director Partnerships'),
+        'organization' => env('AHAIC_VISA_SIGNATORY_ORGANIZATION', 'Amref Health Africa'),
+        'signature' => 'img/visa-signature.jpg',
+    ],
+
+    /*
      * Where uploads and generated documents are written.
      *
      * Every upload names its disk through these two keys rather than relying on
