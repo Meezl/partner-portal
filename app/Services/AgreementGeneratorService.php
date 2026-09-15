@@ -14,8 +14,6 @@ class AgreementGeneratorService
     {
         $partner->loadMissing('packages');
 
-        $package = $partner->packages->first();
-
         $agreement = Agreement::create([
             'partner_id' => $partner->id,
             'document_path' => null,
@@ -40,6 +38,7 @@ class AgreementGeneratorService
             'partner' => $partner,
             'package' => $package,
             'agreement' => $agreement,
+            'terms' => PartnershipAgreementTerms::for($agreement, $partner, $package),
         ]);
 
         $filename = $signed
