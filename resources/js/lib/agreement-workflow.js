@@ -1,7 +1,9 @@
 const AGREEMENT_STATUS_ORDER = ['pending', 'signed', 'verified'];
 
 export function getAgreementStepState(currentStatus, stepKey) {
-    const currentIdx = AGREEMENT_STATUS_ORDER.indexOf(currentStatus);
+    // A rejected agreement is back to awaiting a signature.
+    const status = currentStatus === 'rejected' ? 'pending' : currentStatus;
+    const currentIdx = AGREEMENT_STATUS_ORDER.indexOf(status);
     const stepIdx = AGREEMENT_STATUS_ORDER.indexOf(stepKey);
 
     if (currentIdx === -1 || stepIdx === -1) {

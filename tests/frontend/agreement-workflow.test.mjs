@@ -22,3 +22,8 @@ test('agreement workflow handles unknown statuses defensively', () => {
     assert.equal(getAgreementStepState('unknown', 'pending'), 'upcoming');
     assert.equal(getAgreementStepState('pending', 'unknown'), 'upcoming');
 });
+
+test('agreement workflow treats a rejected agreement as awaiting a signature again', () => {
+    assert.equal(getAgreementStepState('rejected', 'pending'), 'current');
+    assert.equal(getAgreementStepState('rejected', 'signed'), 'upcoming');
+});

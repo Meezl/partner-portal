@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\AgendaController;
+use App\Http\Controllers\Admin\AgreementReviewController;
 use App\Http\Controllers\Admin\BoothController;
 use App\Http\Controllers\Admin\ChangeRequestController;
 use App\Http\Controllers\Admin\ConferenceController;
@@ -38,6 +39,14 @@ Route::middleware(['auth', 'verified', 'role:super_admin,admin,finance,programme
         Route::put('/sessions/{session}', [SessionReviewController::class, 'update'])->name('sessions.update');
         Route::post('/sessions/{session}/approve', [SessionReviewController::class, 'approve'])->name('sessions.approve');
         Route::post('/sessions/{session}/reject', [SessionReviewController::class, 'reject'])->name('sessions.reject');
+    });
+
+    // Signed agreement review (super admin + admin + partnerships)
+    Route::middleware(['role:super_admin,admin,partnerships'])->group(function () {
+        Route::get('/agreements', [AgreementReviewController::class, 'index'])->name('agreements.index');
+        Route::get('/agreements/{agreement}/document', [AgreementReviewController::class, 'document'])->name('agreements.document');
+        Route::post('/agreements/{agreement}/verify', [AgreementReviewController::class, 'verify'])->name('agreements.verify');
+        Route::post('/agreements/{agreement}/reject', [AgreementReviewController::class, 'reject'])->name('agreements.reject');
     });
 
     // User Directory (super admin + admin + partnerships)

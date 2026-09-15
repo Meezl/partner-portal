@@ -7,6 +7,7 @@ enum AgreementStatus: string
     case Pending = 'pending';
     case Signed = 'signed';
     case Verified = 'verified';
+    case Rejected = 'rejected';
 
     public function label(): string
     {
@@ -14,6 +15,7 @@ enum AgreementStatus: string
             self::Pending => 'Pending',
             self::Signed => 'Signed',
             self::Verified => 'Verified',
+            self::Rejected => 'Rejected',
         };
     }
 
@@ -23,6 +25,7 @@ enum AgreementStatus: string
             self::Pending => 'text-yellow-600',
             self::Signed => 'text-blue-500',
             self::Verified => 'text-green-600',
+            self::Rejected => 'text-red-600',
         };
     }
 }

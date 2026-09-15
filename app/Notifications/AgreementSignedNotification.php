@@ -36,6 +36,12 @@ class AgreementSignedNotification extends Notification implements ShouldQueue
             $mail->line('Signed by: '.$this->agreement->signed_by_name);
         }
 
+        $mail->line(match ($this->agreement->signed_method) {
+            'upload' => 'They uploaded a signed copy — please check the signatures on the document.',
+            'digital' => 'They signed digitally in the partner portal.',
+            default => 'Signing method not recorded.',
+        });
+
         return $mail
             ->line('Their invoice has been generated and is now awaiting payment.')
             ->action('View the partner', url('/admin/partners'));

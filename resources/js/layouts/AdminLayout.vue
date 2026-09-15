@@ -17,6 +17,7 @@ import {
     BarChart3,
     Radio,
     ClipboardCheck,
+    FileSignature,
 } from 'lucide-vue-next';
 import { computed } from 'vue';
 import AppContent from '@/components/AppContent.vue';
@@ -111,6 +112,12 @@ const allNavGroups: NavGroup[] = [
                 title: 'Session Review',
                 href: '/admin/sessions',
                 icon: ClipboardCheck,
+                roles: ['super_admin', 'admin', 'partnerships'],
+            },
+            {
+                title: 'Agreement Review',
+                href: '/admin/agreements',
+                icon: FileSignature,
                 roles: ['super_admin', 'admin', 'partnerships'],
             },
             {

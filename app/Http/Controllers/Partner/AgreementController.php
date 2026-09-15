@@ -76,6 +76,10 @@ class AgreementController extends Controller
                 ->with('error', 'Please generate your agreement before signing.');
         }
 
+        if ($refusal = $this->alreadySigned($agreement)) {
+            return $refusal;
+        }
+
         $agreement->update([
             'signed_by_name' => $validated['signer_name'],
             'signed_method' => 'digital',
@@ -85,11 +89,7 @@ class AgreementController extends Controller
 
         app(AgreementGeneratorService::class)->generateSignedCopy($agreement->fresh(['partner.packages']));
         $this->completeAgreement($request, $partner->id);
-
-        // Finance has no other prompt that an invoice is now outstanding.
-        Notification::route('mail', array_values(array_filter(
-            (array) (config('ahaic.team_emails') ?: [config('ahaic.central_email')])
-        )))->notify(new AgreementSignedNotification($agreement->load('partner')));
+        $this->notifyTeam($agreement);
 
         return back()->with('success', 'Your agreement has been digitally signed and your invoice is now ready.');
     }
@@ -100,7 +100,11 @@ class AgreementController extends Controller
     public function upload(Request $request): RedirectResponse
     {
         $request->validate([
-            'signed_document' => ['required', 'mimes:pdf', 'max:10240'],
+            'signed_document' => ['required', 'file', 'mimes:pdf', 'max:10240'],
+        ], [
+            'signed_document.required' => 'Choose the signed agreement to upload.',
+            'signed_document.mimes' => 'Upload the signed agreement as a PDF — scan or save all signed pages into one PDF file.',
+            'signed_document.max' => 'The signed agreement must be 10 MB or smaller.',
         ]);
 
         $partner = $request->user()->partner;
@@ -109,6 +113,10 @@ class AgreementController extends Controller
         if (! $agreement) {
             return redirect()->route('partner.commitment.edit')
                 ->with('error', 'Please generate your agreement before uploading a signed copy.');
+        }
+
+        if ($refusal = $this->alreadySigned($agreement)) {
+            return $refusal;
         }
 
         $path = $request->file('signed_document')->store("agreements/{$partner->id}", config('ahaic.disks.private'));
@@ -122,8 +130,35 @@ class AgreementController extends Controller
         ]);
 
         $this->completeAgreement($request, $partner->id);
+        $this->notifyTeam($agreement);
 
         return back()->with('success', 'Your signed agreement has been uploaded successfully and your invoice is now ready.');
+    }
+
+    /**
+     * An agreement is signed once, by one method. A second signature — a
+     * digital one over an uploaded wet-signed copy, or a re-upload — would
+     * silently replace the document the team has already been told about.
+     * Only the partnerships team sending it back reopens it for signing.
+     */
+    private function alreadySigned(Agreement $agreement): ?RedirectResponse
+    {
+        if ($agreement->awaitsSignature()) {
+            return null;
+        }
+
+        return back()->with('error', 'This agreement has already been signed. Contact the AHAIC team if the signed copy needs to be replaced.');
+    }
+
+    /**
+     * Finance has no other prompt that an invoice is now outstanding, however
+     * the agreement was signed.
+     */
+    private function notifyTeam(Agreement $agreement): void
+    {
+        Notification::route('mail', array_values(array_filter(
+            (array) (config('ahaic.team_emails') ?: [config('ahaic.central_email')])
+        )))->notify(new AgreementSignedNotification($agreement->fresh('partner')));
     }
 
     private function completeAgreement(Request $request, int $partnerId): void
@@ -146,6 +181,10 @@ class AgreementController extends Controller
             }
         }
 
-        $partner->update(['status' => PartnerStatus::PendingPayment]);
+        // Signing moves the partner on to payment, but never back: a partner
+        // re-signing a rejected agreement may already have paid.
+        if ($partner->status === PartnerStatus::PendingAgreement) {
+            $partner->update(['status' => PartnerStatus::PendingPayment]);
+        }
     }
 }

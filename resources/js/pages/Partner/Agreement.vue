@@ -74,8 +74,9 @@ function downloadInvoice() {
     window.open(`/partner/invoices/${props.invoice.id}/download`, '_blank');
 }
 
-function handleFileSelect(file: File) {
+function handleFileSelect(file: File | null) {
     uploadForm.signed_document = file;
+    uploadForm.clearErrors('signed_document');
 }
 
 function digitallySign() {
@@ -109,6 +110,27 @@ function getStepState(stepKey: string) {
                 Review your agreement, then digitally sign it or upload a signed
                 PDF.
             </p>
+        </div>
+
+        <div
+            v-if="agreement.status === 'rejected'"
+            class="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200"
+            role="alert"
+        >
+            <p class="font-medium">
+                The AHAIC team sent your signed agreement back. Please sign it again.
+            </p>
+            <p v-if="agreement.review_notes" class="mt-1">
+                Reason: {{ agreement.review_notes }}
+            </p>
+        </div>
+
+        <div
+            v-else-if="agreement.status === 'signed'"
+            class="rounded-lg border bg-muted/50 p-4 text-sm text-muted-foreground"
+        >
+            Your signed agreement is with the AHAIC partnerships team for a final check.
+            You can carry on to payment in the meantime.
         </div>
 
         <Card>
@@ -189,7 +211,11 @@ function getStepState(stepKey: string) {
                             @click="downloadAgreement"
                         >
                             <Download class="mr-2 h-4 w-4" />
-                            Download Agreement
+                            {{
+                                agreement.signed_document_path
+                                    ? 'Download Signed Agreement'
+                                    : 'Download Agreement'
+                            }}
                         </Button>
                     </div>
                     <div
@@ -327,8 +353,16 @@ function getStepState(stepKey: string) {
                     </div>
                     <div v-else class="space-y-4">
                         <FileUpload
-                            accept=".pdf,.doc,.docx"
-                            @select="handleFileSelect"
+                            accept=".pdf"
+                            :max-size="10"
+                            @change="handleFileSelect"
+                        />
+                        <p class="text-xs text-muted-foreground">
+                            Print the agreement, sign it, then scan all signed
+                            pages into one PDF (10 MB max).
+                        </p>
+                        <InputError
+                            :message="uploadForm.errors.signed_document"
                         />
                         <Button
                             class="w-full"

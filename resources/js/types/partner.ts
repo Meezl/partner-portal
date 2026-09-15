@@ -46,7 +46,7 @@ export type ChangeRequestStatus =
 
 export type ChangeRequestType = 'time' | 'room' | 'session_details' | 'other';
 
-export type AgreementStatus = 'pending' | 'signed' | 'verified';
+export type AgreementStatus = 'pending' | 'signed' | 'verified' | 'rejected';
 
 export interface Conference {
     id: number;
@@ -139,6 +139,8 @@ export interface Agreement {
     signed_at: string | null;
     generated_at: string | null;
     status: AgreementStatus;
+    reviewed_at: string | null;
+    review_notes: string | null;
 }
 
 export interface Invoice {
