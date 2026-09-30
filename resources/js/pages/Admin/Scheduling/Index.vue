@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Head, router, useForm } from '@inertiajs/vue3';
 import {
+    CalendarClock,
     CalendarDays,
     Plus,
     Clock,
@@ -362,6 +363,12 @@ function getPartnerColor(partnerId: number): string {
                 >
                     {{ allocationSummary.unscheduled_sessions }} unscheduled
                 </Badge>
+                <Button variant="outline" as-child>
+                    <a href="/admin/scheduling/slots">
+                        <CalendarClock class="mr-2 h-4 w-4" />
+                        Slot Inventory
+                    </a>
+                </Button>
                 <Button @click="openAssignDialog">
                     <Plus class="mr-2 h-4 w-4" />
                     Assign Session

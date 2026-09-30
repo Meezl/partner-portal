@@ -241,10 +241,7 @@ it('tells the team when a partner signs their agreement', function () {
     ]);
 
     $this->actingAs($partnerUser)
-        ->post(route('partner.agreement.sign'), [
-            'signer_name' => 'A Signatory',
-            'accept_terms' => true,
-        ]);
+        ->post(route('partner.agreement.sign'), signingPayload(['signer_name' => 'A Signatory']));
 
     Notification::assertSentOnDemand(AgreementSignedNotification::class);
 });

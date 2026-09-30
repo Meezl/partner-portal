@@ -6,6 +6,7 @@ import StatsCard from '@/components/admin/StatsCard.vue';
 import ConfirmDialog from '@/components/shared/ConfirmDialog.vue';
 import DataTable from '@/components/shared/DataTable.vue';
 import StatusBadge from '@/components/shared/StatusBadge.vue';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import AdminLayout from '@/layouts/AdminLayout.vue';
 import type { Payment, Invoice, Partner } from '@/types/partner';
@@ -71,9 +72,10 @@ const columns = [
     { key: 'partner', label: 'Partner' },
     { key: 'invoice_number', label: 'Invoice #' },
     { key: 'amount', label: 'Amount' },
+    { key: 'payment_type', label: 'Type' },
     { key: 'payment_method', label: 'Method' },
     { key: 'transaction_reference', label: 'Reference' },
-    { key: 'supporting_document', label: 'Proof' },
+    { key: 'supporting_document', label: 'Document' },
     { key: 'status', label: 'Status' },
     { key: 'confirmed_at', label: 'Date' },
 ];
@@ -118,6 +120,18 @@ const columns = [
             <template #amount="{ item }">
                 {{ formatCurrency(item.amount, item.currency) }}
             </template>
+            <template #payment_type="{ item }">
+                <Badge
+                    :variant="item.payment_type === 'purchase_order' ? 'outline' : 'secondary'"
+                    :class="
+                        item.payment_type === 'purchase_order'
+                            ? 'border-amber-400 text-amber-700 dark:text-amber-400'
+                            : ''
+                    "
+                >
+                    {{ item.payment_type === 'purchase_order' ? 'Pay later (LPO/PO)' : 'Paid now' }}
+                </Badge>
+            </template>
             <template #payment_method="{ item }">
                 <span class="capitalize">{{ item.payment_method?.replace(/_/g, ' ') || '---' }}</span>
             </template>
@@ -137,7 +151,7 @@ const columns = [
                         rel="noopener noreferrer"
                     >
                         <FileText class="mr-1 h-4 w-4" />
-                        View Proof
+                        {{ item.payment_type === 'purchase_order' ? 'View LPO/PO' : 'View Proof' }}
                     </a>
                 </Button>
                 <span v-else>---</span>

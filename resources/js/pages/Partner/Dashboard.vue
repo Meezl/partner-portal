@@ -6,6 +6,7 @@ import {
     CreditCard,
     ClipboardCheck,
     ArrowRight,
+    Hourglass,
     FileText,
     Clock,
     AlertCircle,
@@ -30,6 +31,7 @@ import {
     getEoiActionLabel as resolveEoiActionLabel,
     getEoiDescription as resolveEoiDescription,
     getQuickActionSpecs,
+    getWorkflowPrompt,
 } from '@/lib/partner-workflow.js';
 import { create as createEoi } from '@/routes/partner/eoi';
 import type {
@@ -136,6 +138,11 @@ const eoiDateValue = computed(() => {
     return partner.updated_at ?? partner.created_at;
 });
 
+/** The single next step, shown as a prompt above the summary cards. */
+const workflowPrompt = computed(() =>
+    getWorkflowPrompt(props.partner?.status ?? null, Boolean(props.partner)),
+);
+
 const quickActions = computed(() => {
     const iconMap: Record<string, typeof ArrowRight> = {
         start_eoi: ArrowRight,
@@ -144,7 +151,9 @@ const quickActions = computed(() => {
         revise_eoi: ArrowRight,
         commitment: FileText,
         payment: CreditCard,
+        start_onboarding: ClipboardCheck,
         onboarding: ClipboardCheck,
+        review_submission: FileText,
         schedule: CalendarDays,
         invoices: FileText,
     } as const;
@@ -193,6 +202,48 @@ function formatDate(date: string) {
             v-if="partner && partner.status !== 'rejected'"
             :current-status="partner.status"
         />
+
+        <!-- What to do next, so no stage of the workflow is a dead end. -->
+        <Card
+            :class="
+                workflowPrompt.waiting
+                    ? 'border-border'
+                    : 'border-primary/40 bg-primary/5'
+            "
+        >
+            <CardContent
+                class="flex flex-col gap-4 py-6 sm:flex-row sm:items-center sm:justify-between"
+            >
+                <div class="flex items-start gap-3">
+                    <component
+                        :is="workflowPrompt.waiting ? Hourglass : ArrowRight"
+                        class="mt-0.5 h-5 w-5 shrink-0"
+                        :class="workflowPrompt.waiting ? 'text-muted-foreground' : 'text-primary'"
+                    />
+                    <div>
+                        <h3 class="font-semibold">{{ workflowPrompt.title }}</h3>
+                        <p class="mt-1 text-sm text-muted-foreground">
+                            {{ workflowPrompt.description }}
+                        </p>
+                    </div>
+                </div>
+
+                <Link
+                    v-if="workflowPrompt.action"
+                    :href="workflowPrompt.action.href"
+                    class="shrink-0"
+                >
+                    <Button
+                        :variant="workflowPrompt.waiting ? 'outline' : 'default'"
+                        size="lg"
+                        class="w-full sm:w-auto"
+                    >
+                        {{ workflowPrompt.action.label }}
+                        <ArrowRight class="ml-2 h-4 w-4" />
+                    </Button>
+                </Link>
+            </CardContent>
+        </Card>
 
         <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <Card>

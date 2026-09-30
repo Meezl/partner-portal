@@ -79,10 +79,15 @@ class FinanceController extends Controller
             'confirmed_at' => now(),
         ]);
 
-        $payment->invoice?->update([
-            'status' => InvoiceStatus::Paid,
-            'paid_at' => now(),
-        ]);
+        // A purchase order is a commitment, not money received, so the invoice
+        // stays open until the payment itself lands. The partner still moves on,
+        // because finance has accepted the commitment.
+        if ($payment->payment_type->settlesInvoice()) {
+            $payment->invoice?->update([
+                'status' => InvoiceStatus::Paid,
+                'paid_at' => now(),
+            ]);
+        }
 
         // Update partner status to confirmed
         $partner = $payment->partner;
@@ -96,7 +101,9 @@ class FinanceController extends Controller
             Notification::send($partner->user, new PaymentConfirmedNotification($payment->invoice));
         }
 
-        return back()->with('success', 'Payment confirmed successfully.');
+        return back()->with('success', $payment->payment_type->settlesInvoice()
+            ? 'Payment confirmed successfully.'
+            : 'Purchase order approved. The invoice stays open until the payment arrives.');
     }
 
     /**

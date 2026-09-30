@@ -5,6 +5,7 @@ import {
     LayoutDashboard,
     Users,
     CreditCard,
+    CalendarClock,
     CalendarDays,
     DoorOpen,
     Wrench,
@@ -92,6 +93,7 @@ const allNavGroups: NavGroup[] = [
         label: 'Scheduling',
         items: [
             { title: 'Board', href: '/admin/scheduling', icon: CalendarDays },
+            { title: 'Slot Inventory', href: '/admin/scheduling/slots', icon: CalendarClock },
             { title: 'Rooms', href: '/admin/rooms', icon: DoorOpen },
             { title: 'Booths', href: '/admin/booths', icon: Package },
             { title: 'Resources', href: '/admin/resources', icon: Wrench },

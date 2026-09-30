@@ -29,6 +29,7 @@
         table.signatures .row { padding: 7px 16px 0 0; }
         table.signatures .line { display: inline-block; width: 62%; border-bottom: 1px solid #221f1f; }
         table.signatures .signed { color: #255325; font-weight: 700; }
+        table.signatures img.ink { height: 38px; max-width: 62%; }
         .witnesses-label { font-weight: 700; margin: 16px 0 0; }
         .signature-meta { margin-top: 6px; font-size: 8.5pt; color: #255325; }
     </style>
@@ -40,6 +41,10 @@
         $partnerAddress = $partner->physical_address ?: $partner->billing_address;
         $dots = '……………………';
         $digital = $agreement->signed_method === 'digital' && $agreement->signed_by_name;
+        // Falls back to the title captured at registration for agreements
+        // signed before the signing form asked for one.
+        $signerTitle = $agreement->signed_by_title ?: $partner->contact_title;
+        $witnessed = $digital && $agreement->witness_name;
 
         // Sections are numbered as they are rendered, so a tier without the
         // indemnity clause (CSO, Exhibitor) ends at 11 without a gap.
@@ -178,6 +183,10 @@
                             {{ $field }}:
                             @if($digital && $field === 'Name')
                                 <span class="signed">{{ $agreement->signed_by_name }}</span>
+                            @elseif($digital && $field === 'Title' && $signerTitle)
+                                <span class="signed">{{ $signerTitle }}</span>
+                            @elseif($digital && $field === 'Signature' && $agreement->signature_image)
+                                <img class="ink" src="{{ $agreement->signature_image }}" alt="Signature">
                             @elseif($digital && $field === 'Signature')
                                 <span class="signed">Signed digitally</span>
                             @elseif($digital && $field === 'Date')
@@ -201,7 +210,20 @@
                 @foreach(['Name', 'Title', 'Signature', 'Date'] as $field)
                     <tr>
                         <td class="row">{{ $field }}: <span class="line">&nbsp;</span></td>
-                        <td class="row">{{ $field }}: <span class="line">&nbsp;</span></td>
+                        <td class="row">
+                            {{ $field }}:
+                            @if($witnessed && $field === 'Name')
+                                <span class="signed">{{ $agreement->witness_name }}</span>
+                            @elseif($witnessed && $field === 'Title')
+                                <span class="signed">{{ $agreement->witness_title }}</span>
+                            @elseif($witnessed && $field === 'Signature' && $agreement->witness_signature_image)
+                                <img class="ink" src="{{ $agreement->witness_signature_image }}" alt="Witness signature">
+                            @elseif($witnessed && $field === 'Date')
+                                <span class="signed">{{ $agreement->signed_at?->format('F j, Y') }}</span>
+                            @else
+                                <span class="line">&nbsp;</span>
+                            @endif
+                        </td>
                     </tr>
                 @endforeach
             </table>

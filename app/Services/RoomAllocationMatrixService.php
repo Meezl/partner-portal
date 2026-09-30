@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\SeatingArrangement;
 use App\Models\ConferenceSession;
 use App\Models\Room;
 use Illuminate\Support\Carbon;
@@ -35,6 +36,8 @@ class RoomAllocationMatrixService
                                 'room_id' => $room->id,
                                 'room_name' => $room->name,
                                 'room_capacity' => $room->capacity,
+                                'room_theatre_capacity' => $room->capacityFor(SeatingArrangement::Theatre),
+                                'room_round_capacity' => $room->capacityFor(SeatingArrangement::RoundTable),
                                 'schedule' => $schedule ? [
                                     'id' => $schedule->id,
                                     'conference_session_id' => $schedule->conference_session_id,
@@ -48,6 +51,7 @@ class RoomAllocationMatrixService
                                         'title' => $schedule->session->title,
                                         'format' => $schedule->session->format?->value ?? (string) $schedule->session->format,
                                         'expected_participants' => $schedule->session->expected_participants,
+                                        'special_requirements' => $schedule->session->special_requirements,
                                     ] : null,
                                     'fit_warnings' => $warnings,
                                 ] : null,
@@ -92,6 +96,8 @@ class RoomAllocationMatrixService
                 'room_id' => $room->id,
                 'name' => $room->name,
                 'capacity' => $room->capacity,
+                'theatre_capacity' => $room->capacityFor(SeatingArrangement::Theatre),
+                'round_capacity' => $room->capacityFor(SeatingArrangement::RoundTable),
                 'assignment_count' => $assignmentCount,
                 'utilization_rate' => (int) round(($assignmentCount / $totalSlots) * 100),
                 'format_suitability' => $room->format_suitability ?? [],
@@ -118,11 +124,19 @@ class RoomAllocationMatrixService
     {
         $warnings = [];
 
-        if ($session->expected_participants && $room->capacity && $session->expected_participants > $room->capacity) {
+        // Capacity depends on how the room is laid out, so compare against the
+        // seating arrangement the session asked for.
+        $seating = SeatingArrangement::fromLegacy($session->special_requirements['seating_type'] ?? null);
+        $capacity = $room->capacityFor($seating);
+
+        if ($capacity === null) {
+            $warnings[] = sprintf('Room is not set up as %s.', $seating->describe());
+        } elseif ($session->expected_participants && $session->expected_participants > $capacity) {
             $warnings[] = sprintf(
-                'Expected attendance (%d) exceeds room capacity (%d).',
+                'Expected attendance (%d) exceeds %s capacity (%d).',
                 $session->expected_participants,
-                $room->capacity,
+                $seating->describe(),
+                $capacity,
             );
         }
 

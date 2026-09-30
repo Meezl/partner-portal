@@ -14,6 +14,7 @@ import { computed } from 'vue';
 import InputError from '@/components/InputError.vue';
 import BlockedActionHint from '@/components/shared/BlockedActionHint.vue';
 import FileUpload from '@/components/shared/FileUpload.vue';
+import SignaturePad from '@/components/shared/SignaturePad.vue';
 import StatusBadge from '@/components/shared/StatusBadge.vue';
 import { Button } from '@/components/ui/button';
 import {
@@ -44,6 +45,14 @@ const uploadForm = useForm({
 const signForm = useForm({
     signer_name:
         props.agreement.signed_by_name ?? props.partner.contact_person ?? '',
+    // Prefilled from the title given at registration, still editable in case
+    // someone else in the organization signs.
+    signer_title:
+        props.agreement.signed_by_title ?? props.partner.contact_title ?? '',
+    signature_image: null as string | null,
+    witness_name: '',
+    witness_title: '',
+    witness_signature_image: null as string | null,
     accept_terms: false,
 });
 
@@ -53,6 +62,22 @@ const signBlockers = computed(() => {
 
     if (!signForm.signer_name?.trim()) {
         blockers.push('Type your full name to sign.');
+    }
+
+    if (!signForm.signer_title?.trim()) {
+        blockers.push('Add your title or position.');
+    }
+
+    if (!signForm.signature_image) {
+        blockers.push('Draw your signature.');
+    }
+
+    if (!signForm.witness_name?.trim() || !signForm.witness_title?.trim()) {
+        blockers.push("Add the witness's name and title.");
+    }
+
+    if (!signForm.witness_signature_image) {
+        blockers.push("Draw the witness's signature.");
     }
 
     if (!signForm.accept_terms) {
@@ -267,18 +292,76 @@ function getStepState(stepKey: string) {
                         </p>
                     </div>
                     <div v-else class="space-y-4">
+                        <div class="grid gap-4 sm:grid-cols-2">
+                            <div class="space-y-2">
+                                <Label for="signer_name">Authorized Signatory Name</Label>
+                                <Input
+                                    id="signer_name"
+                                    v-model="signForm.signer_name"
+                                    placeholder="Full legal name"
+                                />
+                                <InputError :message="signForm.errors.signer_name" />
+                            </div>
+
+                            <div class="space-y-2">
+                                <Label for="signer_title">Title / Position</Label>
+                                <Input
+                                    id="signer_title"
+                                    v-model="signForm.signer_title"
+                                    placeholder="e.g. Executive Director"
+                                />
+                                <InputError :message="signForm.errors.signer_title" />
+                            </div>
+                        </div>
+
                         <div class="space-y-2">
-                            <Label for="signer_name"
-                                >Authorized Signatory Name</Label
-                            >
-                            <Input
-                                id="signer_name"
-                                v-model="signForm.signer_name"
-                                placeholder="Full legal name"
+                            <Label>Your signature</Label>
+                            <SignaturePad
+                                v-model="signForm.signature_image"
+                                label="Sign with your mouse, trackpad, or finger."
                             />
-                            <InputError
-                                :message="signForm.errors.signer_name"
-                            />
+                            <InputError :message="signForm.errors.signature_image" />
+                        </div>
+
+                        <div class="space-y-4 rounded-lg border p-4">
+                            <div>
+                                <p class="text-sm font-medium">Witness</p>
+                                <p class="text-xs text-muted-foreground">
+                                    The agreement is witnessed at signing, the same as a wet-signed
+                                    copy.
+                                </p>
+                            </div>
+
+                            <div class="grid gap-4 sm:grid-cols-2">
+                                <div class="space-y-2">
+                                    <Label for="witness_name">Witness Name</Label>
+                                    <Input
+                                        id="witness_name"
+                                        v-model="signForm.witness_name"
+                                        placeholder="Full name"
+                                    />
+                                    <InputError :message="signForm.errors.witness_name" />
+                                </div>
+
+                                <div class="space-y-2">
+                                    <Label for="witness_title">Witness Title / Position</Label>
+                                    <Input
+                                        id="witness_title"
+                                        v-model="signForm.witness_title"
+                                        placeholder="e.g. Finance Manager"
+                                    />
+                                    <InputError :message="signForm.errors.witness_title" />
+                                </div>
+                            </div>
+
+                            <div class="space-y-2">
+                                <Label>Witness signature</Label>
+                                <SignaturePad
+                                    v-model="signForm.witness_signature_image"
+                                    label="The witness signs here."
+                                />
+                                <InputError :message="signForm.errors.witness_signature_image" />
+                            </div>
                         </div>
                         <label
                             class="flex items-start gap-3 rounded-lg border p-3 text-sm"

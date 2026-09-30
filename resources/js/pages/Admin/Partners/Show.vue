@@ -13,9 +13,12 @@ import {
     Clock,
     CheckCircle2,
     Circle,
+    Image as ImageIcon,
+    Megaphone,
 } from 'lucide-vue-next';
 import { ref, computed } from 'vue';
 import DataTable from '@/components/shared/DataTable.vue';
+import FileLink from '@/components/shared/FileLink.vue';
 import StatusBadge from '@/components/shared/StatusBadge.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -35,6 +38,7 @@ import {
 } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import AdminLayout from '@/layouts/AdminLayout.vue';
+import { filledSocialLinks, tickedChecklistLabels } from '@/lib/checklists.js';
 import type {
     Partner,
     ConferenceSession,
@@ -47,6 +51,12 @@ import type {
 defineOptions({ layout: AdminLayout });
 
 const props = defineProps<{
+    /** Option key → label for the exhibition checklist, from the server. */
+    exhibitionOptions: Record<string, string>;
+    /** Option key → label for the communications checklist, from the server. */
+    commsOptions: Record<string, string>;
+    /** Role key → label, so roles read the same as on the partner's own form. */
+    contactRoles: Record<string, string>;
     partner: Partner & {
         sessions?: ConferenceSession[];
         invoices?: (Invoice & { payments?: Payment[] })[];
@@ -69,6 +79,7 @@ const tabs = [
     { key: 'sessions', label: 'Sessions', icon: CalendarDays },
     { key: 'invoices', label: 'Invoices & Payments', icon: CreditCard },
     { key: 'onboarding', label: 'Onboarding', icon: CheckCircle2 },
+    { key: 'branding', label: 'Profile & Branding', icon: Megaphone },
     { key: 'contacts', label: 'Contacts', icon: Users },
     { key: 'changes', label: 'Change Requests', icon: ArrowLeftRight },
     { key: 'audit', label: 'Audit Log', icon: Clock },
@@ -149,11 +160,38 @@ const invoiceColumns = [
 
 const contactColumns = [
     { key: 'name', label: 'Name' },
+    { key: 'designation', label: 'Designation' },
     { key: 'email', label: 'Email' },
     { key: 'phone', label: 'Phone' },
     { key: 'role', label: 'Role' },
     { key: 'organization', label: 'Organization' },
 ];
+
+const branding = computed(() => props.partner.branding_requirement ?? null);
+
+const exhibitionRequirements = computed(() =>
+    tickedChecklistLabels(props.exhibitionOptions, props.partner.exhibition_requirements ?? null),
+);
+
+const commsRequirements = computed(() =>
+    tickedChecklistLabels(props.commsOptions, branding.value?.comms_checklist ?? null),
+);
+
+const socialLinks = computed(() => filledSocialLinks(props.partner.social_media));
+
+/**
+ * The name to save the logo under. Uploads made before the name was recorded
+ * fall back to the hashed storage filename.
+ */
+const logoName = computed(() => {
+    if (props.partner.logo_name) {
+        return props.partner.logo_name;
+    }
+
+    const path = props.partner.logo_path ?? '';
+
+    return decodeURIComponent(path.split('/').pop() || 'logo');
+});
 
 const changeColumns = [
     { key: 'type', label: 'Type' },
@@ -473,13 +511,174 @@ const changeColumns = [
             </Card>
         </div>
 
+        <!-- Profile & Branding Tab -->
+        <div v-if="activeTab === 'branding'" class="grid gap-6 lg:grid-cols-2">
+            <Card>
+                <CardHeader>
+                    <CardTitle>Organization Profile</CardTitle>
+                </CardHeader>
+                <CardContent class="space-y-5">
+                    <div class="flex items-start gap-4">
+                        <div
+                            class="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-lg border bg-muted"
+                        >
+                            <img
+                                v-if="partner.logo_path"
+                                :src="partner.logo_path"
+                                :alt="`${partner.organization_name} logo`"
+                                class="h-full w-full object-contain"
+                            />
+                            <ImageIcon v-else class="h-8 w-8 text-muted-foreground" />
+                        </div>
+                        <div class="min-w-0 flex-1 space-y-1">
+                            <p class="text-sm text-muted-foreground">Logo</p>
+                            <FileLink
+                                v-if="partner.logo_path"
+                                :name="logoName"
+                                :url="partner.logo_path"
+                            />
+                            <p v-else class="text-sm text-muted-foreground">
+                                No logo uploaded.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div v-if="partner.description">
+                        <p class="text-sm text-muted-foreground">Description</p>
+                        <p class="mt-1 text-sm whitespace-pre-line">
+                            {{ partner.description }}
+                        </p>
+                    </div>
+
+                    <div v-if="socialLinks.length > 0">
+                        <p class="mb-2 text-sm text-muted-foreground">Social Media &amp; Website</p>
+                        <ul class="space-y-1 text-sm">
+                            <li v-for="[platform, url] in socialLinks" :key="platform">
+                                <span class="capitalize text-muted-foreground">{{ platform }}:</span>
+                                <a
+                                    :href="url"
+                                    target="_blank"
+                                    rel="noopener"
+                                    class="ml-1 underline underline-offset-2"
+                                >
+                                    {{ url }}
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <div>
+                        <p class="text-sm text-muted-foreground">Expected Participants</p>
+                        <p class="text-sm">{{ partner.number_of_participants ?? '---' }}</p>
+                    </div>
+                </CardContent>
+            </Card>
+
+            <Card>
+                <CardHeader>
+                    <CardTitle>Exhibition Requirements</CardTitle>
+                </CardHeader>
+                <CardContent class="space-y-4">
+                    <div v-if="exhibitionRequirements.length > 0" class="flex flex-wrap gap-2">
+                        <Badge
+                            v-for="(label, index) in exhibitionRequirements"
+                            :key="index"
+                            variant="outline"
+                        >
+                            {{ label }}
+                        </Badge>
+                    </div>
+                    <p v-else class="text-sm text-muted-foreground">
+                        Nothing requested beyond the standard exhibition package.
+                    </p>
+
+                    <div v-if="partner.exhibition_preferences">
+                        <p class="text-sm text-muted-foreground">Additional comments</p>
+                        <p class="mt-1 text-sm whitespace-pre-line">
+                            {{ partner.exhibition_preferences }}
+                        </p>
+                    </div>
+                </CardContent>
+            </Card>
+
+            <Card class="lg:col-span-2">
+                <CardHeader>
+                    <CardTitle>Communications &amp; Branding</CardTitle>
+                </CardHeader>
+                <CardContent class="space-y-5">
+                    <div v-if="commsRequirements.length > 0">
+                        <p class="mb-2 text-sm text-muted-foreground">Requested</p>
+                        <div class="flex flex-wrap gap-2">
+                            <Badge
+                                v-for="(label, index) in commsRequirements"
+                                :key="index"
+                                variant="outline"
+                            >
+                                {{ label }}
+                            </Badge>
+                        </div>
+                    </div>
+
+                    <div v-if="branding?.requirements">
+                        <p class="text-sm text-muted-foreground">Additional comments</p>
+                        <p class="mt-1 text-sm whitespace-pre-line">
+                            {{ branding.requirements }}
+                        </p>
+                    </div>
+
+                    <div v-if="branding?.assets && branding.assets.length > 0">
+                        <p class="mb-2 text-sm text-muted-foreground">
+                            Branding assets ({{ branding.assets.length }})
+                        </p>
+                        <ul class="space-y-1 sm:max-w-xl">
+                            <li v-for="(asset, index) in branding.assets" :key="index">
+                                <FileLink :name="asset.name" :url="asset.url" />
+                            </li>
+                        </ul>
+                    </div>
+
+                    <p
+                        v-if="
+                            commsRequirements.length === 0 &&
+                            !branding?.requirements &&
+                            !branding?.assets?.length
+                        "
+                        class="text-sm text-muted-foreground"
+                    >
+                        The partner has not filled in this section yet.
+                    </p>
+                </CardContent>
+            </Card>
+        </div>
+
         <!-- Contacts Tab -->
         <div v-if="activeTab === 'contacts'">
             <DataTable
                 :columns="contactColumns"
                 :data="partner.contacts || []"
                 empty-message="No contacts found."
-            />
+            >
+                <template #designation="{ item }">
+                    <span v-if="item.designation">{{ item.designation }}</span>
+                    <span v-else class="text-muted-foreground">---</span>
+                </template>
+
+                <template #phone="{ item }">
+                    <span v-if="item.phone">{{ item.phone }}</span>
+                    <span v-else class="text-muted-foreground">---</span>
+                </template>
+
+                <template #role="{ item }">
+                    <Badge variant="outline">
+                        {{ contactRoles[item.role] ?? item.role }}
+                    </Badge>
+                </template>
+
+                <template #organization="{ item }">
+                    <span v-if="item.organization">{{ item.organization }}</span>
+                    <span v-else class="text-muted-foreground">---</span>
+                </template>
+            </DataTable>
         </div>
 
         <!-- Change Requests Tab -->

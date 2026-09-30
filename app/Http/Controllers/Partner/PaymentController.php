@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Partner;
 
 use App\Enums\InvoiceStatus;
 use App\Enums\PaymentStatus;
+use App\Enums\PaymentType;
 use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
 use App\Models\Invoice;
@@ -13,6 +14,8 @@ use App\Notifications\PaymentSubmittedNotification;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -33,6 +36,7 @@ class PaymentController extends Controller
             'partner' => $partner,
             'invoices' => $pendingInvoices,
             'paymentMethod' => 'bank_transfer',
+            'paymentTypes' => PaymentType::options(),
         ]);
     }
 
@@ -43,12 +47,24 @@ class PaymentController extends Controller
     {
         $validated = $request->validate([
             'invoice_id' => ['required', 'exists:invoices,id'],
+            // Absent means the historical behaviour: money already sent.
+            'payment_type' => ['nullable', Rule::enum(PaymentType::class)],
             'amount' => ['required', 'numeric', 'min:0.01'],
             'payment_method' => ['required', 'in:bank_transfer'],
             'transaction_reference' => ['required', 'string', 'max:255'],
             'supporting_document' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:10240'],
+        ], [], [
+            // The two flows attach different things, so the default "supporting
+            // document" wording would be wrong for one of them.
+            'transaction_reference' => Str::lower(
+                PaymentType::tryFrom($request->input('payment_type', ''))?->referenceLabel() ?? 'reference',
+            ),
+            'supporting_document' => Str::lower(
+                PaymentType::tryFrom($request->input('payment_type', ''))?->documentLabel() ?? 'document',
+            ),
         ]);
 
+        $paymentType = PaymentType::tryFrom($validated['payment_type'] ?? '') ?? PaymentType::ProofOfPayment;
         $partner = $request->user()->partner;
 
         // Verify invoice belongs to partner
@@ -61,6 +77,7 @@ class PaymentController extends Controller
         $payment = Payment::create([
             'invoice_id' => $invoice->id,
             'partner_id' => $partner->id,
+            'payment_type' => $paymentType,
             'amount' => $validated['amount'],
             'currency' => $invoice->currency,
             'payment_method' => 'bank_transfer',
@@ -78,6 +95,8 @@ class PaymentController extends Controller
         }
 
         return redirect()->route('partner.dashboard')
-            ->with('success', 'Your payment has been submitted and is being verified.');
+            ->with('success', $paymentType === PaymentType::PurchaseOrder
+                ? 'Your purchase order has been submitted and is being reviewed by the finance team.'
+                : 'Your payment has been submitted and is being verified.');
     }
 }

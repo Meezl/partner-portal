@@ -3,7 +3,6 @@
 namespace App\Models;
 
 use App\Enums\PartnerStatus;
-use App\Models\SponsorshipPackage;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -13,7 +12,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-#[Fillable(['conference_id', 'user_id', 'organization_name', 'slug', 'contact_person', 'email', 'phone', 'physical_address', 'billing_address', 'tax_details', 'customer_code', 'logo_path', 'description', 'social_media', 'number_of_participants', 'exhibition_preferences', 'status', 'onboarding_progress', 'submitted_at', 'confirmed_at', 'locked_at'])]
+#[Fillable(['conference_id', 'user_id', 'organization_name', 'slug', 'contact_person', 'contact_title', 'email', 'phone', 'physical_address', 'billing_address', 'tax_details', 'customer_code', 'logo_path', 'logo_name', 'description', 'social_media', 'number_of_participants', 'exhibition_preferences', 'exhibition_requirements', 'status', 'onboarding_progress', 'submitted_at', 'confirmed_at', 'locked_at'])]
 class Partner extends Model
 {
     use HasFactory, SoftDeletes;
@@ -28,6 +27,7 @@ class Partner extends Model
         return [
             'status' => PartnerStatus::class,
             'social_media' => 'array',
+            'exhibition_requirements' => 'array',
             'onboarding_progress' => 'array',
             'submitted_at' => 'datetime',
             'confirmed_at' => 'datetime',

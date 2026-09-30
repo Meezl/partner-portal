@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Enums\ChangeRequestStatus;
 use App\Enums\ChangeRequestType;
+use App\Enums\SeatingArrangement;
 use App\Models\ChangeRequest;
 use App\Models\ConferenceSession;
 use App\Models\SessionSlot;
@@ -28,6 +29,9 @@ class SessionTimeRequestService
      * Slots a session may choose from: assignable, and neither claimed nor held
      * by anyone else. The session's own approved/requested slots stay visible so
      * the picker can render the current selection.
+     *
+     * Room capacities come along so the picker can hide slots whose room is too
+     * small for the expected headcount in the requested seating arrangement.
      */
     public function availableSlotsFor(int $conferenceId, ?ConferenceSession $session = null): Collection
     {
@@ -36,7 +40,7 @@ class SessionTimeRequestService
             $session?->requested_session_slot_id,
         ]));
 
-        return SessionSlot::with('defaultRoom:id,name')
+        return SessionSlot::with('defaultRoom:id,name,capacity,theatre_capacity,round_capacity')
             ->where('conference_id', $conferenceId)
             ->where('is_assignable', true)
             ->where(function ($q) use ($ownSlotIds) {
@@ -51,6 +55,45 @@ class SessionTimeRequestService
             ->orderBy('day_index')
             ->orderBy('sort_order')
             ->get();
+    }
+
+    /**
+     * Refuse a slot whose room cannot hold the session's expected headcount in
+     * the seating arrangement it asked for.
+     *
+     * The picker already hides those slots; this is the server-side backstop,
+     * and it also catches a headcount raised after the slot was chosen.
+     */
+    public function assertSlotFits(int $conferenceId, int $slotId, ?int $participants, SeatingArrangement $seating): void
+    {
+        $slot = SessionSlot::with('defaultRoom:id,name,capacity,theatre_capacity,round_capacity')
+            ->where('conference_id', $conferenceId)
+            ->find($slotId);
+
+        if (! $slot || $slot->seats($participants, $seating)) {
+            return;
+        }
+
+        $room = $slot->defaultRoom;
+        $capacity = $room->capacityFor($seating);
+
+        throw ValidationException::withMessages([
+            'session_slot_id' => $capacity === null
+                ? sprintf(
+                    '%s is in %s, which is not set up as %s. Choose a slot in a room that is.',
+                    $slot->slot_code,
+                    $room->name,
+                    $seating->describe(),
+                )
+                : sprintf(
+                    '%s is in %s, which seats %d %s — fewer than the %d participants you expect.',
+                    $slot->slot_code,
+                    $room->name,
+                    $capacity,
+                    $seating->describe(),
+                    $participants,
+                ),
+        ]);
     }
 
     /**
@@ -76,7 +119,7 @@ class SessionTimeRequestService
         }
 
         return DB::transaction(function () use ($session, $slotId, $requestedBy, $reason) {
-            $slot = $this->lockAvailableSlot($session->conference_id, $slotId);
+            $slot = $this->lockAvailableSlot($session->conference_id, $slotId, $session->partner_id);
 
             $slot->update([
                 'held_by_session_id' => $session->id,
@@ -294,6 +337,58 @@ class SessionTimeRequestService
     }
 
     /**
+     * Hand a single slot back to the pool.
+     *
+     * Used by the programme team when a slot is spoken for by a session that is
+     * never going to happen — most often a draft a partner started and
+     * abandoned, which holds the slot with nothing on the board to show for it.
+     * The holding session keeps its details and simply loses its time.
+     */
+    public function releaseSlot(SessionSlot $slot, ?User $actor = null, ?string $reason = null): void
+    {
+        DB::transaction(function () use ($slot, $actor, $reason) {
+            $sessionIds = array_values(array_unique(array_filter([
+                $slot->claimed_by_session_id,
+                $slot->held_by_session_id,
+            ])));
+
+            $slot->update([
+                'claimed_by_session_id' => null,
+                'claimed_at' => null,
+                'held_by_session_id' => null,
+                'held_at' => null,
+            ]);
+
+            ConferenceSession::withTrashed()
+                ->where('session_slot_id', $slot->id)
+                ->update(['session_slot_id' => null]);
+
+            ConferenceSession::withTrashed()
+                ->where('requested_session_slot_id', $slot->id)
+                ->update(['requested_session_slot_id' => null]);
+
+            foreach ($sessionIds as $sessionId) {
+                ChangeRequest::where('conference_session_id', $sessionId)
+                    ->where('type', ChangeRequestType::Time)
+                    ->where('status', ChangeRequestStatus::Pending)
+                    ->update([
+                        'status' => ChangeRequestStatus::AutoResolved,
+                        'reviewed_by' => $actor?->id,
+                        'reviewed_at' => now(),
+                        'resolution_notes' => $reason ?: 'The programme team released this slot.',
+                    ]);
+
+                $session = ConferenceSession::withTrashed()->find($sessionId);
+
+                if ($session) {
+                    // No slot means no derived booking.
+                    $this->schedules->sync($session->refresh(), $actor?->id);
+                }
+            }
+        });
+    }
+
+    /**
      * Release every hold and claim a session holds, and close its open time
      * requests. Used when a draft session is deleted.
      */
@@ -324,7 +419,7 @@ class SessionTimeRequestService
     /**
      * Fetch a slot for update, failing validation if it is not bookable.
      */
-    private function lockAvailableSlot(int $conferenceId, int $slotId): SessionSlot
+    private function lockAvailableSlot(int $conferenceId, int $slotId, ?int $partnerId = null): SessionSlot
     {
         $slot = SessionSlot::where('id', $slotId)
             ->where('conference_id', $conferenceId)
@@ -338,12 +433,39 @@ class SessionTimeRequestService
             ]);
         }
 
-        if ($slot->claimed_by_session_id !== null || $slot->held_by_session_id !== null) {
+        $takenBy = $slot->claimed_by_session_id ?? $slot->held_by_session_id;
+
+        if ($takenBy !== null) {
             throw ValidationException::withMessages([
-                'session_slot_id' => 'This slot was just taken by another partner. Please choose another.',
+                'session_slot_id' => $this->takenMessage($slot, $takenBy, $partnerId),
             ]);
         }
 
         return $slot;
+    }
+
+    /**
+     * Say who actually has the slot.
+     *
+     * Blaming "another partner" is wrong — and baffling — when the slot is
+     * being held by one of the partner's own sessions, which is the common case
+     * when they start several drafts and abandon them.
+     */
+    private function takenMessage(SessionSlot $slot, int $takenBy, ?int $partnerId): string
+    {
+        $holder = ConferenceSession::withTrashed()->find($takenBy);
+
+        if ($partnerId !== null && $holder && $holder->partner_id === $partnerId) {
+            return sprintf(
+                '%s is already held by your session "%s". Release it there, or choose a different slot.',
+                $slot->slot_code,
+                $holder->title,
+            );
+        }
+
+        return sprintf(
+            '%s has already been taken. Slots are first-come, first-served — please choose another.',
+            $slot->slot_code,
+        );
     }
 }

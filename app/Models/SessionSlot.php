@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\SeatingArrangement;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -55,6 +56,19 @@ class SessionSlot extends Model
         return $this->is_assignable
             && $this->claimed_by_session_id === null
             && $this->held_by_session_id === null;
+    }
+
+    /**
+     * Whether this slot's room can hold $participants seated $seating.
+     *
+     * A slot with no default room always passes: the programme team places it
+     * by hand, so there is no capacity to check yet.
+     */
+    public function seats(?int $participants, SeatingArrangement $seating): bool
+    {
+        $room = $this->defaultRoom;
+
+        return $room === null || $room->seats($participants, $seating);
     }
 
     /**

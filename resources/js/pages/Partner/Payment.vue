@@ -22,10 +22,19 @@ import type { Partner, Invoice } from '@/types/partner';
 
 defineOptions({ layout: PartnerLayout });
 
+interface PaymentTypeOption {
+    value: string;
+    label: string;
+    document: string;
+    reference: string;
+}
+
 const props = defineProps<{
     partner: Partner;
     invoices: Invoice[];
     paymentMethod: string;
+    /** Pay now or pay later, with the wording each one uses. */
+    paymentTypes: PaymentTypeOption[];
 }>();
 
 const pendingInvoices = computed(() =>
@@ -42,11 +51,21 @@ const selectedInvoice = computed(
 
 const form = useForm({
     invoice_id: pendingInvoices.value[0]?.id?.toString() ?? '',
+    payment_type: props.paymentTypes[0]?.value ?? 'proof_of_payment',
     amount: pendingInvoices.value[0]?.amount?.toString() ?? '',
     payment_method: props.paymentMethod,
     transaction_reference: '',
     supporting_document: null as File | null,
 });
+
+const payingLater = computed(() => form.payment_type === 'purchase_order');
+
+/** The wording for whichever route the partner picked. */
+const selectedType = computed(
+    () =>
+        props.paymentTypes.find((type) => type.value === form.payment_type) ??
+        props.paymentTypes[0],
+);
 
 function onInvoiceChange(
     val: string | number | bigint | Record<string, any> | null,
@@ -76,7 +95,9 @@ function formatCurrency(amount: number, currency: string) {
     }).format(amount);
 }
 
-const bankDetails = computed(() => selectedInvoice.value?.bank_details ?? null);
+const bankDetails = computed(() =>
+    payingLater.value ? null : (selectedInvoice.value?.bank_details ?? null),
+);
 
 function handleSupportingDocument(file: File | null) {
     form.supporting_document = file;
@@ -90,7 +111,8 @@ function handleSupportingDocument(file: File | null) {
                 Make Payment
             </h1>
             <p class="mt-1 text-muted-foreground">
-                Pay by bank transfer and upload your supporting proof of payment.
+                Pay now and send your proof of payment, or commit to pay later with a purchase
+                order. Either way the finance team reviews it.
             </p>
         </div>
 
@@ -194,6 +216,39 @@ function handleSupportingDocument(file: File | null) {
                             </div>
 
                             <div class="space-y-2">
+                                <Label>How are you settling this invoice?</Label>
+                                <div class="grid gap-3 sm:grid-cols-2">
+                                    <label
+                                        v-for="type in paymentTypes"
+                                        :key="type.value"
+                                        class="flex cursor-pointer flex-col gap-1 rounded-lg border p-3 transition"
+                                        :class="
+                                            form.payment_type === type.value
+                                                ? 'border-primary bg-primary/5'
+                                                : 'border-input hover:border-primary/50'
+                                        "
+                                    >
+                                        <input
+                                            type="radio"
+                                            class="sr-only"
+                                            :value="type.value"
+                                            :checked="form.payment_type === type.value"
+                                            @change="form.payment_type = type.value"
+                                        />
+                                        <span class="text-sm font-medium">{{ type.label }}</span>
+                                        <span class="text-xs text-muted-foreground">
+                                            {{
+                                                type.value === 'purchase_order'
+                                                    ? 'Send your LPO or PO now and pay before the conference.'
+                                                    : 'You have already transferred the funds.'
+                                            }}
+                                        </span>
+                                    </label>
+                                </div>
+                                <InputError :message="form.errors.payment_type" />
+                            </div>
+
+                            <div class="space-y-2">
                                 <Label>Payment Method</Label>
                                 <div
                                     class="flex items-center gap-3 rounded-lg border bg-muted/30 px-4 py-3"
@@ -214,13 +269,15 @@ function handleSupportingDocument(file: File | null) {
                             </div>
 
                             <div class="space-y-2">
-                                <Label for="transaction_reference"
-                                    >Transaction Reference</Label
-                                >
+                                <Label for="transaction_reference">{{ selectedType.reference }}</Label>
                                 <Input
                                     id="transaction_reference"
                                     v-model="form.transaction_reference"
-                                    placeholder="Enter transaction or receipt reference"
+                                    :placeholder="
+                                        payingLater
+                                            ? 'Enter your LPO or PO number'
+                                            : 'Enter transaction or receipt reference'
+                                    "
                                 />
                                 <InputError
                                     :message="form.errors.transaction_reference"
@@ -228,14 +285,18 @@ function handleSupportingDocument(file: File | null) {
                             </div>
 
                             <div class="space-y-2">
-                                <Label>Supporting Document</Label>
+                                <Label>{{ selectedType.document }}</Label>
                                 <FileUpload
                                     accept=".pdf,.jpg,.jpeg,.png"
                                     :max-size="10"
                                     @change="handleSupportingDocument"
                                 />
                                 <p class="text-xs text-muted-foreground">
-                                    Upload a bank slip, transfer confirmation, or any supporting bank payment document.
+                                    {{
+                                        payingLater
+                                            ? 'Upload your signed local purchase order or purchase order.'
+                                            : 'Upload a bank slip, transfer confirmation, or any supporting bank payment document.'
+                                    }}
                                 </p>
                                 <InputError
                                     :message="form.errors.supporting_document"
@@ -246,7 +307,7 @@ function handleSupportingDocument(file: File | null) {
                     <CardFooter class="flex justify-end">
                         <Button @click="submit" :disabled="form.processing">
                             <Send class="mr-2 h-4 w-4" />
-                            Submit Payment Proof
+                            {{ payingLater ? 'Submit Purchase Order' : 'Submit Payment Proof' }}
                         </Button>
                     </CardFooter>
                 </Card>

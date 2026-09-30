@@ -57,6 +57,7 @@ const form = useForm({
     package_id: selectedPackageId.value,
     organization_name: props.partner?.organization_name ?? '',
     contact_person: props.partner?.contact_person ?? '',
+    contact_title: props.partner?.contact_title ?? '',
     email: props.partner?.email ?? '',
     phone: props.partner?.phone ?? '',
     physical_address: props.partner?.physical_address ?? '',
@@ -304,6 +305,19 @@ function submit() {
                                 placeholder="Full name"
                             />
                             <InputError :message="form.errors.contact_person" />
+                        </div>
+
+                        <div class="space-y-2">
+                            <Label for="contact_title">Title / Position</Label>
+                            <Input
+                                id="contact_title"
+                                v-model="form.contact_title"
+                                placeholder="e.g. Executive Director"
+                            />
+                            <p class="text-xs text-muted-foreground">
+                                Printed as the signatory's title on your partnership agreement.
+                            </p>
+                            <InputError :message="form.errors.contact_title" />
                         </div>
 
                         <div class="space-y-2">

@@ -127,10 +127,7 @@ it('digitally signs the agreement, generates an invoice, and advances to pending
 
     $response = $this
         ->actingAs($user)
-        ->post(route('partner.agreement.sign'), [
-            'signer_name' => 'Jane Partner',
-            'accept_terms' => true,
-        ]);
+        ->post(route('partner.agreement.sign'), signingPayload());
 
     $response->assertRedirect();
 

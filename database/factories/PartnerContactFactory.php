@@ -21,6 +21,7 @@ class PartnerContactFactory extends Factory
             'email' => fake()->safeEmail(),
             'phone' => fake()->phoneNumber(),
             'role' => 'additional',
+            'designation' => fake()->jobTitle(),
             'organization' => fake()->company(),
         ];
     }

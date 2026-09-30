@@ -44,7 +44,33 @@ expect()->extend('toBeOne', function () {
 |
 */
 
-function something()
+/**
+ * A 1x1 PNG data URL, standing in for a signature drawn in the portal's
+ * signature pad. Real signatures are larger but identical in shape.
+ */
+function drawnSignature(): string
 {
-    // ..
+    return 'data:image/png;base64,'.base64_encode(base64_decode(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+    ));
+}
+
+/**
+ * Everything the signing form sends: the signatory, their drawn signature, and
+ * the witness who countersigns.
+ *
+ * @param  array<string, mixed>  $overrides
+ * @return array<string, mixed>
+ */
+function signingPayload(array $overrides = []): array
+{
+    return array_merge([
+        'signer_name' => 'Jane Partner',
+        'signer_title' => 'Executive Director',
+        'signature_image' => drawnSignature(),
+        'witness_name' => 'Ken Witness',
+        'witness_title' => 'Finance Manager',
+        'witness_signature_image' => drawnSignature(),
+        'accept_terms' => true,
+    ], $overrides);
 }

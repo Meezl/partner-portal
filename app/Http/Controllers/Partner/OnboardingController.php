@@ -7,9 +7,12 @@ use App\Http\Controllers\Controller;
 use App\Models\BrandingRequirement;
 use App\Models\PartnerContact;
 use App\Services\OnboardingProgressService;
+use App\Support\OnboardingChecklists;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -64,12 +67,19 @@ class OnboardingController extends Controller
             'progress' => $progress,
         ];
 
+        if ($section === 'organization') {
+            $props['exhibitionOptions'] = OnboardingChecklists::exhibition();
+        }
+
         if ($section === 'communications') {
             $props['branding'] = $partner->brandingRequirement;
+            $props['commsOptions'] = OnboardingChecklists::communications();
         }
 
         if ($section === 'contacts') {
             $props['contacts'] = $partner->contacts;
+            $props['contactRoles'] = OnboardingProgressService::contactRoles();
+            $props['mandatoryRoles'] = OnboardingProgressService::mandatoryContactRoles();
         }
 
         if ($section === 'sessions') {
@@ -139,6 +149,7 @@ class OnboardingController extends Controller
             'social_media.facebook' => ['nullable', 'string'],
             'number_of_participants' => ['nullable', 'integer', 'min:1'],
             'exhibition_preferences' => ['nullable', 'string', 'max:1000'],
+            ...OnboardingChecklists::rulesFor('exhibition_requirements', OnboardingChecklists::exhibition()),
         ]);
 
         // Validate description word count (max 100 words)
@@ -157,12 +168,21 @@ class OnboardingController extends Controller
             'social_media' => $socialMedia,
             'number_of_participants' => $validated['number_of_participants'] ?? $partner->number_of_participants,
             'exhibition_preferences' => $validated['exhibition_preferences'] ?? $partner->exhibition_preferences,
+            'exhibition_requirements' => OnboardingChecklists::normalise(
+                OnboardingChecklists::exhibition(),
+                $validated['exhibition_requirements'] ?? null,
+            ),
         ];
 
         if ($request->hasFile('logo')) {
             $disk = config('ahaic.disks.public');
-            $path = $request->file('logo')->store("partners/{$partner->id}/logos", $disk);
+            $logo = $request->file('logo');
+            $path = $logo->store("partners/{$partner->id}/logos", $disk);
+
             $updateData['logo_path'] = Storage::disk($disk)->url($path);
+            // Storage names the file by hash; keep the partner's own name so
+            // reviewers can tell one downloaded logo from another.
+            $updateData['logo_name'] = $logo->getClientOriginalName();
         }
 
         $partner->update($updateData);
@@ -173,30 +193,59 @@ class OnboardingController extends Controller
      */
     private function updateCommunicationsSection(Request $request, $partner): void
     {
-        $validated = $request->validate([
-            'requirements' => ['nullable', 'string', 'max:5000'],
-            'media_contact_name' => ['nullable', 'string', 'max:255'],
-            'media_contact_email' => ['nullable', 'email', 'max:255'],
-            'media_contact_phone' => ['nullable', 'string', 'max:50'],
-            'assets' => ['nullable', 'file', 'mimes:zip,png,jpg,jpeg,pdf,svg', 'max:10240'],
-        ]);
+        // Assets arrive as a batch. Arr::wrap also accepts a lone file, so a
+        // client posting a single upload still works.
+        $assets = array_values(array_filter(Arr::wrap($request->file('assets'))));
 
-        $brandingRequirement = $partner->brandingRequirement;
+        $validated = validator(
+            [...$request->except('assets'), 'assets' => $assets],
+            [
+                'requirements' => ['nullable', 'string', 'max:5000'],
+                'assets' => ['array', 'max:20'],
+                'assets.*' => ['file', 'mimes:zip,png,jpg,jpeg,pdf,svg', 'max:10240'],
+                ...OnboardingChecklists::rulesFor('comms_checklist', OnboardingChecklists::communications()),
+            ],
+            [
+                // The default wording names the field "assets.0", which means
+                // nothing to a partner looking at a list of filenames.
+                'assets.max' => 'You can upload up to 20 branding assets at a time.',
+                'assets.*.file' => 'Each branding asset must be an uploaded file.',
+                'assets.*.mimes' => 'Each branding asset must be a ZIP, PNG, JPG, PDF or SVG file.',
+                'assets.*.max' => 'Each branding asset must be 10 MB or smaller.',
+            ],
+        )->validate();
+
+        // Queried rather than read off the relation: a batch is appended to
+        // whatever is already stored, so a stale relation would silently drop
+        // the assets from an earlier save.
+        $brandingRequirement = BrandingRequirement::firstWhere('partner_id', $partner->id);
         $existingAssets = $brandingRequirement?->assets ?? [];
 
-        if ($request->hasFile('assets')) {
+        if ($assets !== []) {
             $disk = config('ahaic.disks.public');
-            $path = $request->file('assets')->store("partners/{$partner->id}/branding", $disk);
-            $existingAssets[] = Storage::disk($disk)->url($path);
+
+            // Partners send a whole batch at once, so every file in the request
+            // is stored rather than only the first. The name the partner gave
+            // the file is kept: storage names them by hash, and a review screen
+            // listing "qG9WgooMF….png" tells nobody what was uploaded.
+            foreach ($assets as $asset) {
+                $path = $asset->store("partners/{$partner->id}/branding", $disk);
+
+                $existingAssets[] = [
+                    'name' => $asset->getClientOriginalName(),
+                    'url' => Storage::disk($disk)->url($path),
+                ];
+            }
         }
 
         BrandingRequirement::updateOrCreate(
             ['partner_id' => $partner->id],
             [
                 'requirements' => $validated['requirements'] ?? null,
-                'media_contact_name' => $validated['media_contact_name'] ?? null,
-                'media_contact_email' => $validated['media_contact_email'] ?? null,
-                'media_contact_phone' => $validated['media_contact_phone'] ?? null,
+                'comms_checklist' => OnboardingChecklists::normalise(
+                    OnboardingChecklists::communications(),
+                    $validated['comms_checklist'] ?? null,
+                ),
                 'assets' => $existingAssets,
             ],
         );
@@ -212,7 +261,8 @@ class OnboardingController extends Controller
             'contacts.*.name' => ['required', 'string', 'max:255'],
             'contacts.*.email' => ['required', 'email', 'max:255'],
             'contacts.*.phone' => ['nullable', 'string', 'max:50'],
-            'contacts.*.role' => ['required', 'string', 'max:100'],
+            'contacts.*.role' => ['required', Rule::in(array_keys(OnboardingProgressService::contactRoles()))],
+            'contacts.*.designation' => ['nullable', 'string', 'max:255'],
             'contacts.*.organization' => ['nullable', 'string', 'max:255'],
         ]);
 
@@ -226,6 +276,7 @@ class OnboardingController extends Controller
                 'email' => $contact['email'],
                 'phone' => $contact['phone'] ?? null,
                 'role' => $contact['role'],
+                'designation' => $contact['designation'] ?? null,
                 'organization' => $contact['organization'] ?? null,
             ]);
         }

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Partner;
 
 use App\Enums\PartnerStatus;
+use App\Enums\SeatingArrangement;
 use App\Enums\SessionFormat;
 use App\Enums\SessionStatus;
 use App\Http\Controllers\Controller;
@@ -59,6 +60,7 @@ class SessionController extends Controller
         return Inertia::render('Partner/Sessions/Create', [
             'partner' => $partner,
             'formats' => SessionFormat::cases(),
+            'seatingArrangements' => SeatingArrangement::options(),
             'conference' => $partner->conference,
             'availableSlots' => $this->timeRequests->availableSlotsFor($partner->conference_id),
         ]);
@@ -70,6 +72,15 @@ class SessionController extends Controller
         $partner = $request->user()->partner;
 
         $requestedSlot = $validated['session_slot_id'] ?? null;
+
+        if ($requestedSlot) {
+            $this->timeRequests->assertSlotFits(
+                $partner->conference_id,
+                $requestedSlot,
+                $validated['expected_participants'] ?? null,
+                $this->seatingFrom($validated),
+            );
+        }
 
         DB::transaction(function () use ($validated, $partner, $requestedSlot, $request) {
             $session = ConferenceSession::create([
@@ -129,6 +140,7 @@ class SessionController extends Controller
                 'schedule.timeSlot:id,date,start_time,end_time,label',
             ]),
             'formats' => SessionFormat::cases(),
+            'seatingArrangements' => SeatingArrangement::options(),
             'conference' => $partner->conference,
             'availableSlots' => $this->timeRequests->availableSlotsFor($partner->conference_id, $session),
         ]);
@@ -146,6 +158,15 @@ class SessionController extends Controller
 
         $newSlotId = $validated['session_slot_id'] ?? null;
         $timeRequested = false;
+
+        if ($newSlotId && $newSlotId !== $session->session_slot_id) {
+            $this->timeRequests->assertSlotFits(
+                $session->conference_id,
+                $newSlotId,
+                $validated['expected_participants'] ?? null,
+                $this->seatingFrom($validated),
+            );
+        }
 
         DB::transaction(function () use ($validated, $session, $newSlotId, $request, &$timeRequested) {
             // Everything except date/time saves straight away.
@@ -194,10 +215,9 @@ class SessionController extends Controller
             return back()->with('error', 'Only draft sessions can be deleted.');
         }
 
-        DB::transaction(function () use ($session) {
-            $this->timeRequests->releaseAll($session);
-            $session->delete();
-        });
+        // Deleting releases the slot: ConferenceSession's deleted event calls
+        // releaseAll, so every delete path frees the slot, not just this one.
+        DB::transaction(fn () => $session->delete());
 
         $this->recalculateProgress($partner);
 
@@ -223,9 +243,19 @@ class SessionController extends Controller
             'special_requirements' => ['nullable', 'array'],
             'special_requirements.av_equipment' => ['nullable', 'boolean'],
             'special_requirements.translation' => ['nullable', 'boolean'],
-            'special_requirements.seating_type' => ['nullable', 'string', 'max:255'],
+            'special_requirements.seating_type' => ['nullable', Rule::enum(SeatingArrangement::class)],
             'special_requirements.catering' => ['nullable', 'boolean'],
         ]);
+    }
+
+    /**
+     * The seating arrangement the payload asked for, defaulting to theatre.
+     */
+    private function seatingFrom(array $validated): SeatingArrangement
+    {
+        return SeatingArrangement::fromLegacy(
+            $validated['special_requirements']['seating_type'] ?? null,
+        );
     }
 
     private function recalculateProgress($partner): void

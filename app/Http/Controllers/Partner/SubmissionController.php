@@ -9,6 +9,7 @@ use App\Notifications\PartnerSubmitted;
 use App\Notifications\SubmissionLockedNotification;
 use App\Services\OnboardingProgressService;
 use App\Services\SessionTimeRequestService;
+use App\Support\OnboardingChecklists;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Notification;
@@ -37,6 +38,9 @@ class SubmissionController extends Controller
         return Inertia::render('Partner/Review', [
             'partner' => $partner,
             'progress' => $progress,
+            'exhibitionOptions' => OnboardingChecklists::exhibition(),
+            'commsOptions' => OnboardingChecklists::communications(),
+            'contactRoles' => OnboardingProgressService::contactRoles(),
         ]);
     }
 

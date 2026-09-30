@@ -96,6 +96,8 @@ export interface Partner {
     organization_name: string;
     slug: string;
     contact_person: string;
+    /** The signatory's job title, printed on the partnership agreement. */
+    contact_title?: string | null;
     email: string;
     phone: string | null;
     physical_address: string | null;
@@ -103,10 +105,13 @@ export interface Partner {
     tax_details: string | null;
     customer_code: string | null;
     logo_path: string | null;
+    /** The name the partner gave the logo file, when it is known. */
+    logo_name?: string | null;
     description: string | null;
     social_media: Record<string, string> | null;
     number_of_participants: number | null;
     exhibition_preferences: string | null;
+    exhibition_requirements: ExhibitionChecklist | null;
     status: PartnerStatus;
     onboarding_progress: OnboardingProgress | null;
     submitted_at: string | null;
@@ -119,7 +124,11 @@ export interface Partner {
     invoices?: Invoice[];
     contacts?: PartnerContact[];
     agreements?: Agreement[];
-    brandingRequirement?: BrandingRequirement | null;
+    /**
+     * Eloquent serialises the `brandingRequirement` relation under its
+     * snake_case name, so this is what actually arrives on the page.
+     */
+    branding_requirement?: BrandingRequirement | null;
 }
 
 export interface OnboardingProgress {
@@ -135,6 +144,12 @@ export interface Agreement {
     document_path: string | null;
     signed_document_path: string | null;
     signed_by_name: string | null;
+    signed_by_title: string | null;
+    /** PNG data URLs drawn in the portal's signature pad. */
+    signature_image: string | null;
+    witness_name: string | null;
+    witness_title: string | null;
+    witness_signature_image: string | null;
     signed_method: 'digital' | 'upload' | null;
     signed_at: string | null;
     generated_at: string | null;
@@ -163,10 +178,14 @@ export interface Invoice {
     payments?: Payment[];
 }
 
+/** Whether a payment record is money sent, or a promise to pay. */
+export type PaymentType = 'proof_of_payment' | 'purchase_order';
+
 export interface Payment {
     id: number;
     invoice_id: number;
     partner_id: number;
+    payment_type: PaymentType;
     amount: number;
     currency: string;
     payment_method: string | null;
@@ -189,7 +208,13 @@ export interface SessionSlot {
     end_time: string | null;
     default_format: string | null;
     capacity_hint: number | null;
-    default_room?: { id: number; name: string } | null;
+    default_room?: {
+        id: number;
+        name: string;
+        capacity?: number | null;
+        theatre_capacity?: number | null;
+        round_capacity?: number | null;
+    } | null;
 }
 
 export interface ConferenceSession {
@@ -225,6 +250,8 @@ export interface PartnerContact {
     email: string;
     phone: string | null;
     role: string;
+    /** Job title at their organization, e.g. "Director of Communications". */
+    designation: string | null;
     organization: string | null;
 }
 
@@ -245,6 +272,10 @@ export interface Room {
     building: string | null;
     floor: string | null;
     capacity: number;
+    /** Seats theatre style. Null when the venue does not lay the room out that way. */
+    theatre_capacity: number | null;
+    /** Seats at round tables. Null when the venue does not lay the room out that way. */
+    round_capacity: number | null;
     format_suitability: string[] | null;
     equipment: Record<string, unknown> | null;
     is_active: boolean;
@@ -313,12 +344,26 @@ export interface FeedbackSurvey {
     submitted_at: string | null;
 }
 
+/** A checklist payload: one boolean per option key, plus a free-text "Other". */
+export type Checklist = Record<string, boolean | string | null> & { other?: string | null };
+
+export type CommsChecklist = Checklist;
+
+export type ExhibitionChecklist = Checklist;
+
+/** The two seating arrangements the venue offers. Mirrors App\Enums\SeatingArrangement. */
+export type SeatingArrangement = 'theatre' | 'round_table';
+
+/** An uploaded branding file: the name the partner gave it, and where it lives. */
+export interface BrandingAsset {
+    name: string;
+    url: string;
+}
+
 export interface BrandingRequirement {
     id: number;
     partner_id: number;
     requirements: string | null;
-    media_contact_name: string | null;
-    media_contact_email: string | null;
-    media_contact_phone: string | null;
-    assets: string[] | null;
+    comms_checklist: CommsChecklist | null;
+    assets: BrandingAsset[] | null;
 }

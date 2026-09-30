@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { CalendarClock, Clock, Lock, MapPin } from 'lucide-vue-next';
-import { computed } from 'vue';
+import { CalendarClock, Clock, Lock, MapPin, Users } from 'lucide-vue-next';
+import { computed, watch } from 'vue';
 import { Badge } from '@/components/ui/badge';
+import { roomCapacityFor } from '@/lib/room-allocation.js';
 import { parseCalendarDate } from '@/lib/utils';
-import type { SessionSlot } from '@/types/partner';
+import type { SeatingArrangement, SessionSlot } from '@/types/partner';
 
 const props = defineProps<{
     slots: SessionSlot[];
@@ -14,16 +15,92 @@ const props = defineProps<{
     pendingSlotId?: number | null;
     /** Allow clearing the selection (creation only — see note in Edit). */
     allowClear?: boolean;
+    /** Headcount the session expects, used with `seating` to filter rooms. */
+    expectedParticipants?: number | null;
+    /** Seating arrangement the session asked for. */
+    seating?: SeatingArrangement;
 }>();
 
 const emit = defineEmits<{ 'update:modelValue': [number | null] }>();
 
 const locked = computed(() => props.pendingSlotId != null);
 
+const seating = computed<SeatingArrangement>(() => props.seating ?? 'theatre');
+
+const seatingLabel = computed(() =>
+    seating.value === 'round_table' ? 'round table' : 'theatre style',
+);
+
+/** Whether this slot's room seats the group in the requested arrangement. */
+function fits(slot: SessionSlot): boolean {
+    // No room yet means the programme team places the session by hand.
+    if (!slot.default_room) {
+        return true;
+    }
+
+    const capacity = roomCapacityFor(slot.default_room, seating.value);
+
+    if (capacity === null) {
+        return false;
+    }
+
+    return !props.expectedParticipants || props.expectedParticipants <= capacity;
+}
+
+/**
+ * Slots whose room seats the expected headcount in the requested arrangement.
+ *
+ * Room allocation follows the AHAIC matrix: each room has a theatre-style and a
+ * round-table capacity, and a room the venue does not lay out that way is not
+ * on offer at all. A slot already approved or awaiting a decision stays listed
+ * whatever it seats — it is a booking, not a choice — but a live selection does
+ * not, so raising the headcount drops a slot that no longer fits.
+ */
+const fittingSlots = computed(() =>
+    props.slots.filter(
+        (slot) => slot.id === props.approvedSlotId || slot.id === props.pendingSlotId || fits(slot),
+    ),
+);
+
+/** The booked slot no longer suits the headcount or seating now on the form. */
+const bookedSlotOutgrown = computed(() => {
+    const bookedId = props.pendingSlotId ?? props.approvedSlotId;
+
+    if (bookedId == null) {
+        return null;
+    }
+
+    const slot = props.slots.find((entry) => entry.id === bookedId);
+
+    return slot && !fits(slot) ? slot : null;
+});
+
+const hiddenCount = computed(() => props.slots.length - fittingSlots.value.length);
+
+/**
+ * Drop a selection that stops fitting — e.g. the partner raises the headcount
+ * after picking a slot — so the form cannot submit a room that is too small.
+ */
+watch(fittingSlots, (slots) => {
+    if (locked.value || props.modelValue === null) {
+        return;
+    }
+
+    if (!slots.some((slot) => slot.id === props.modelValue)) {
+        emit('update:modelValue', null);
+    }
+});
+
+function roomCapacityLabel(slot: SessionSlot): string | null {
+    const capacity = slot.default_room ? roomCapacityFor(slot.default_room, seating.value) : null;
+
+    return capacity === null ? null : `Seats ${capacity} ${seatingLabel.value}`;
+}
+
 const slotsByDay = computed(() => {
     const groups = new Map<number, SessionSlot[]>();
 
-    props.slots.forEach((slot) => {
+    fittingSlots.value.forEach((slot) => {
         const bucket = groups.get(slot.day_index);
 
         if (bucket) {
@@ -77,8 +154,40 @@ function select(slot: SessionSlot) {
             </p>
         </div>
 
+        <div
+            v-if="bookedSlotOutgrown"
+            class="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
+        >
+            {{ bookedSlotOutgrown.slot_code }} is in
+            {{ bookedSlotOutgrown.default_room?.name }}, which no longer suits
+            <template v-if="expectedParticipants">{{ expectedParticipants }} people</template>
+            <template v-else>your session</template>
+            {{ seatingLabel }}. Choose another slot below, or the programme team will move you.
+        </div>
+
         <p v-if="!slots.length" class="text-muted-foreground text-sm">
             No bookable slots are currently available. The programme team will assign one manually.
+        </p>
+
+        <div
+            v-else-if="!fittingSlots.length"
+            class="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
+        >
+            No room seats {{ expectedParticipants }} people {{ seatingLabel }}. Lower the expected
+            number of participants, switch the seating arrangement, or leave the slot unchosen and
+            the programme team will find you a room.
+        </div>
+
+        <p v-else-if="hiddenCount > 0" class="text-muted-foreground flex items-start gap-1.5 text-xs">
+            <Users class="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <span>
+                Showing slots in rooms that seat
+                <template v-if="expectedParticipants">{{ expectedParticipants }} people</template>
+                <template v-else>your session</template>
+                {{ seatingLabel }}.
+                {{ hiddenCount }} {{ hiddenCount === 1 ? 'slot is' : 'slots are' }} hidden because the
+                room is too small or is not set up that way.
+            </span>
         </p>
 
         <div v-for="[index, daySlots] in slotsByDay" :key="index" class="space-y-2">
@@ -125,6 +234,7 @@ function select(slot: SessionSlot) {
                     <span v-if="slot.default_room" class="text-muted-foreground flex items-center gap-1.5 text-xs">
                         <MapPin class="h-3 w-3" />
                         {{ slot.default_room.name }}
+                        <template v-if="roomCapacityLabel(slot)">· {{ roomCapacityLabel(slot) }}</template>
                     </span>
 
                     <span v-if="slot.default_format" class="text-muted-foreground text-xs capitalize">

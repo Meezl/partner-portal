@@ -6,6 +6,7 @@ use App\Enums\ChangeRequestStatus;
 use App\Enums\ChangeRequestType;
 use App\Enums\SessionFormat;
 use App\Enums\SessionStatus;
+use App\Services\SessionTimeRequestService;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -23,6 +24,18 @@ class ConferenceSession extends Model
      * The table associated with the model.
      */
     protected $table = 'conference_sessions';
+
+    protected static function booted(): void
+    {
+        // A deleted session must not keep holding a slot. The partner-facing
+        // delete already releases first, but sessions are also removed by the
+        // admin screens and by cascades, and a soft delete leaves the row in
+        // place so the database's own nullOnDelete never fires — the slot then
+        // reads as taken while nothing on the board explains why.
+        static::deleted(function (self $session) {
+            app(SessionTimeRequestService::class)->releaseAll($session);
+        });
+    }
 
     /**
      * Get the attributes that should be cast.

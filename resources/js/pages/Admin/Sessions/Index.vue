@@ -33,6 +33,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import AdminLayout from '@/layouts/AdminLayout.vue';
+import { normalizeSeating } from '@/lib/room-allocation.js';
 import { formatCalendarDate } from '@/lib/utils';
 import type { ConferenceSession, Partner, SessionSlot } from '@/types/partner';
 
@@ -112,7 +113,12 @@ function requirementRows(session: ReviewSession): { label: string; value: string
     return [
         { label: 'AV equipment', value: reqs.av_equipment ? 'Required' : 'Not required' },
         { label: 'Translation', value: reqs.translation ? 'Required' : 'Not required' },
-        { label: 'Seating', value: String(reqs.seating_type ?? '—').replace(/_/g, ' ') },
+        {
+            label: 'Seating',
+            value: normalizeSeating(reqs.seating_type as string | undefined) === 'round_table'
+                ? 'Round Tables'
+                : 'Theatre style',
+        },
         { label: 'Catering', value: reqs.catering ? 'Required' : 'Not required' },
     ];
 }

@@ -181,7 +181,7 @@ it('prevents assigning sessions into rooms that do not fit capacity or supported
             'room_id' => $roomA->id,
             'time_slot_id' => $slotA->id,
         ])
-        ->assertSessionHas('error', 'Expected attendance (145) exceeds room capacity (120).');
+        ->assertSessionHas('error', 'Expected attendance (145) exceeds theatre style capacity (120).');
 
     $formatRestrictedRoom = Room::factory()->create([
         'conference_id' => $conference->id,

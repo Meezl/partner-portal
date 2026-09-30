@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['partner_id', 'document_path', 'signed_document_path', 'signed_by_name', 'signed_method', 'signed_at', 'generated_at', 'status', 'reviewed_by', 'reviewed_at', 'review_notes'])]
+#[Fillable(['partner_id', 'document_path', 'signed_document_path', 'signed_by_name', 'signed_by_title', 'signature_image', 'witness_name', 'witness_title', 'witness_signature_image', 'signed_method', 'signed_at', 'generated_at', 'status', 'reviewed_by', 'reviewed_at', 'review_notes'])]
 class Agreement extends Model
 {
     use HasFactory;

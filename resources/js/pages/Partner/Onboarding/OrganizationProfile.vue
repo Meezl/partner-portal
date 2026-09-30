@@ -3,19 +3,36 @@ import { useForm } from '@inertiajs/vue3';
 import { Save, Globe, Twitter, Linkedin, Facebook, Image } from 'lucide-vue-next';
 import { computed } from 'vue';
 import InputError from '@/components/InputError.vue';
+import ChecklistGroup from '@/components/shared/ChecklistGroup.vue';
 import FileUpload from '@/components/shared/FileUpload.vue';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import PartnerLayout from '@/layouts/PartnerLayout.vue';
-import type { Partner } from '@/types/partner';
+import type { ExhibitionChecklist, Partner } from '@/types/partner';
 
 defineOptions({ layout: PartnerLayout });
 
 const props = defineProps<{
     partner: Partner;
+    /** Option key → label for the exhibition checklist, from the server. */
+    exhibitionOptions: Record<string, string>;
 }>();
+
+/** Start from what was saved, so unticked options are present as false. */
+function initialExhibitionRequirements(): ExhibitionChecklist {
+    const saved = props.partner.exhibition_requirements ?? {};
+    const checklist: ExhibitionChecklist = {};
+
+    Object.keys(props.exhibitionOptions).forEach((key) => {
+        checklist[key] = saved[key] === true;
+    });
+
+    checklist.other = typeof saved.other === 'string' && saved.other !== '' ? saved.other : null;
+
+    return checklist;
+}
 
 const form = useForm({
     _method: 'put',
@@ -29,6 +46,7 @@ const form = useForm({
     },
     number_of_participants: props.partner.number_of_participants ?? null,
     exhibition_preferences: props.partner.exhibition_preferences ?? '',
+    exhibition_requirements: initialExhibitionRequirements(),
 });
 
 const wordCount = computed(() => {
@@ -43,7 +61,7 @@ return 0;
 
 const wordCountExceeded = computed(() => wordCount.value > 100);
 
-function handleLogoSelect(file: File) {
+function handleLogoSelect(file: File | null) {
     form.logo = file;
 }
 
@@ -170,14 +188,31 @@ function submit() {
                     <InputError :message="form.errors.number_of_participants" />
                 </div>
 
+                <div class="space-y-3">
+                    <div>
+                        <Label>Exhibition Requirements</Label>
+                        <p class="text-muted-foreground mt-1 text-sm">
+                            Please indicate any additional exhibition requirements beyond the
+                            standard exhibition package.
+                        </p>
+                    </div>
+                    <ChecklistGroup
+                        v-model="form.exhibition_requirements"
+                        :options="exhibitionOptions"
+                        id-prefix="exhibition"
+                        other-placeholder="Tell us what else you need"
+                    />
+                    <InputError :message="form.errors.exhibition_requirements" />
+                </div>
+
                 <div class="space-y-2">
-                    <Label for="exhibition_preferences">Exhibition Preferences</Label>
+                    <Label for="exhibition_preferences">Any other additional comment</Label>
                     <textarea
                         id="exhibition_preferences"
                         v-model="form.exhibition_preferences"
                         rows="3"
                         class="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex w-full rounded-md border px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
-                        placeholder="Describe your exhibition space requirements, booth preferences, etc."
+                        placeholder="Booth position preferences, anything else the exhibition team should know..."
                     />
                     <InputError :message="form.errors.exhibition_preferences" />
                 </div>

@@ -8,6 +8,8 @@ use App\Models\AuditLog;
 use App\Models\Partner;
 use App\Notifications\InterestApprovedNotification;
 use App\Notifications\InterestRejectedNotification;
+use App\Services\OnboardingProgressService;
+use App\Support\OnboardingChecklists;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -70,6 +72,11 @@ class PartnerManagementController extends Controller
 
         return Inertia::render('Admin/Partners/Show', [
             'partner' => $partner,
+            // The wording for the checklists and contact roles lives on the
+            // server, so the admin review reads the same labels the partner saw.
+            'exhibitionOptions' => OnboardingChecklists::exhibition(),
+            'commsOptions' => OnboardingChecklists::communications(),
+            'contactRoles' => OnboardingProgressService::contactRoles(),
         ]);
     }
 

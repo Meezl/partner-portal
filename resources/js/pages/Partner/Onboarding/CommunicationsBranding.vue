@@ -1,34 +1,57 @@
 <script setup lang="ts">
 import { useForm } from '@inertiajs/vue3';
 import { Save, Megaphone, Upload } from 'lucide-vue-next';
+import { computed } from 'vue';
 import InputError from '@/components/InputError.vue';
+import ChecklistGroup from '@/components/shared/ChecklistGroup.vue';
 import FileUpload from '@/components/shared/FileUpload.vue';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import PartnerLayout from '@/layouts/PartnerLayout.vue';
-import type { Partner, BrandingRequirement } from '@/types/partner';
+import type { Partner, BrandingRequirement, CommsChecklist } from '@/types/partner';
 
 defineOptions({ layout: PartnerLayout });
 
 const props = defineProps<{
     partner: Partner;
     branding: BrandingRequirement | null;
+    /** Option key → label for the communications checklist, from the server. */
+    commsOptions: Record<string, string>;
 }>();
+
+/** Start from what was saved, so unticked options are present as false. */
+function initialCommsChecklist(): CommsChecklist {
+    const saved = props.branding?.comms_checklist ?? {};
+    const checklist: CommsChecklist = {};
+
+    Object.keys(props.commsOptions).forEach((key) => {
+        checklist[key] = saved[key] === true;
+    });
+
+    checklist.other = typeof saved.other === 'string' && saved.other !== '' ? saved.other : null;
+
+    return checklist;
+}
 
 const form = useForm({
     _method: 'put',
     requirements: props.branding?.requirements ?? '',
-    media_contact_name: props.branding?.media_contact_name ?? '',
-    media_contact_email: props.branding?.media_contact_email ?? '',
-    media_contact_phone: props.branding?.media_contact_phone ?? '',
-    assets: null as File | null,
+    comms_checklist: initialCommsChecklist(),
+    assets: [] as File[],
 });
 
-function handleAssetSelect(file: File) {
-    form.assets = file;
+function handleAssetSelect(files: File[]) {
+    form.assets = files;
 }
+
+/** Per-file upload errors come back as assets.0, assets.1, …; show them all. */
+const assetErrors = computed(() =>
+    Object.entries(form.errors)
+        .filter(([key]) => key === 'assets' || key.startsWith('assets.'))
+        .map(([, message]) => message),
+);
+
 
 function submit() {
     form.post('/partner/onboarding/communications', {
@@ -42,7 +65,9 @@ function submit() {
     <div class="space-y-8">
         <div>
             <h1 class="font-heading text-3xl font-bold tracking-tight">Communications &amp; Branding</h1>
-            <p class="text-muted-foreground mt-1">Provide your branding requirements and media contact information.</p>
+            <p class="text-muted-foreground mt-1">
+                Tell the communications team what you need, and upload your branding assets.
+            </p>
         </div>
 
         <Card>
@@ -54,8 +79,24 @@ function submit() {
                 <CardDescription>Describe how your brand should be represented at the conference.</CardDescription>
             </CardHeader>
             <CardContent class="space-y-6">
+                <div class="space-y-3">
+                    <div>
+                        <Label>What do you need from communications?</Label>
+                        <p class="text-muted-foreground mt-1 text-sm">
+                            Tick everything that applies. The communications team works from this list.
+                        </p>
+                    </div>
+                    <ChecklistGroup
+                        v-model="form.comms_checklist"
+                        :options="commsOptions"
+                        id-prefix="comms"
+                        other-placeholder="Tell us what else you need"
+                    />
+                    <InputError :message="form.errors.comms_checklist" />
+                </div>
+
                 <div class="space-y-2">
-                    <Label for="requirements">Requirements</Label>
+                    <Label for="requirements">Any other additional comment</Label>
                     <textarea
                         id="requirements"
                         v-model="form.requirements"
@@ -71,49 +112,35 @@ function submit() {
         <Card>
             <CardHeader>
                 <CardTitle>Branding Assets</CardTitle>
-                <CardDescription>Upload logos, banners, or other branding materials (ZIP, PNG, PDF accepted).</CardDescription>
+                <CardDescription>
+                    Upload logos, banners, or other branding materials — select as many files as you
+                    like in one go (ZIP, PNG, JPG, SVG, PDF accepted).
+                </CardDescription>
             </CardHeader>
             <CardContent>
                 <div class="space-y-4">
-                    <FileUpload accept=".zip,.png,.jpg,.jpeg,.pdf,.svg" @change="handleAssetSelect" />
-                    <InputError :message="form.errors.assets" />
+                    <FileUpload
+                        accept=".zip,.png,.jpg,.jpeg,.pdf,.svg"
+                        multiple
+                        @change-multiple="handleAssetSelect"
+                    />
+                    <InputError v-for="(message, i) in assetErrors" :key="i" :message="message" />
 
                     <div v-if="branding?.assets && branding.assets.length > 0">
                         <p class="text-muted-foreground mb-2 text-sm font-medium">Previously uploaded assets:</p>
                         <ul class="space-y-1">
-                            <li v-for="(asset, i) in branding.assets" :key="i" class="text-muted-foreground flex items-center gap-2 text-sm">
-                                <Upload class="h-3 w-3" />
-                                {{ asset }}
+                            <li v-for="(asset, i) in branding.assets" :key="i" class="text-sm">
+                                <a
+                                    :href="asset.url"
+                                    target="_blank"
+                                    rel="noopener"
+                                    class="text-muted-foreground hover:text-foreground flex items-center gap-2 underline"
+                                >
+                                    <Upload class="h-3 w-3" />
+                                    {{ asset.name }}
+                                </a>
                             </li>
                         </ul>
-                    </div>
-                </div>
-            </CardContent>
-        </Card>
-
-        <Card>
-            <CardHeader>
-                <CardTitle>Media Contact</CardTitle>
-                <CardDescription>Provide a point of contact for media and communications.</CardDescription>
-            </CardHeader>
-            <CardContent>
-                <div class="grid gap-4 sm:grid-cols-3">
-                    <div class="space-y-2">
-                        <Label for="media_contact_name">Name</Label>
-                        <Input id="media_contact_name" v-model="form.media_contact_name" placeholder="Full name" />
-                        <InputError :message="form.errors.media_contact_name" />
-                    </div>
-
-                    <div class="space-y-2">
-                        <Label for="media_contact_email">Email</Label>
-                        <Input id="media_contact_email" type="email" v-model="form.media_contact_email" placeholder="email@example.com" />
-                        <InputError :message="form.errors.media_contact_email" />
-                    </div>
-
-                    <div class="space-y-2">
-                        <Label for="media_contact_phone">Phone</Label>
-                        <Input id="media_contact_phone" v-model="form.media_contact_phone" placeholder="+254 700 000 000" />
-                        <InputError :message="form.errors.media_contact_phone" />
                     </div>
                 </div>
             </CardContent>

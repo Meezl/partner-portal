@@ -109,6 +109,7 @@ it('completes onboarding sections and exposes the review page with computed prog
                     'email' => 'session@example.org',
                     'phone' => '+254700000002',
                     'role' => 'session_lead',
+                    'designation' => 'Head of Programmes',
                     'organization' => 'Example Org',
                 ],
                 [
@@ -116,6 +117,7 @@ it('completes onboarding sections and exposes the review page with computed prog
                     'email' => 'comms@example.org',
                     'phone' => '+254700000003',
                     'role' => 'comms_lead',
+                    'designation' => 'Communications Manager',
                     'organization' => 'Example Org',
                 ],
             ],
@@ -140,7 +142,7 @@ it('completes onboarding sections and exposes the review page with computed prog
             'special_requirements' => [
                 'av_equipment' => true,
                 'translation' => false,
-                'seating_type' => 'theater',
+                'seating_type' => 'theatre',
                 'catering' => true,
             ],
         ])

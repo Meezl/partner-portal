@@ -9,6 +9,7 @@ use App\Models\Agreement;
 use App\Models\Invoice;
 use App\Notifications\AgreementSignedNotification;
 use App\Notifications\InvoiceSentNotification;
+use App\Rules\SignatureImage;
 use App\Services\AgreementGeneratorService;
 use App\Services\InvoiceGeneratorService;
 use Illuminate\Http\RedirectResponse;
@@ -65,7 +66,15 @@ class AgreementController extends Controller
     {
         $validated = $request->validate([
             'signer_name' => ['required', 'string', 'max:255'],
+            'signer_title' => ['required', 'string', 'max:255'],
+            'signature_image' => ['required', 'string', new SignatureImage],
+            'witness_name' => ['required', 'string', 'max:255'],
+            'witness_title' => ['required', 'string', 'max:255'],
+            'witness_signature_image' => ['required', 'string', new SignatureImage],
             'accept_terms' => ['accepted'],
+        ], [
+            'signature_image.required' => 'Draw your signature before submitting.',
+            'witness_signature_image.required' => "Draw the witness's signature before submitting.",
         ]);
 
         $partner = $request->user()->partner;
@@ -82,6 +91,11 @@ class AgreementController extends Controller
 
         $agreement->update([
             'signed_by_name' => $validated['signer_name'],
+            'signed_by_title' => $validated['signer_title'],
+            'signature_image' => $validated['signature_image'],
+            'witness_name' => $validated['witness_name'],
+            'witness_title' => $validated['witness_title'],
+            'witness_signature_image' => $validated['witness_signature_image'],
             'signed_method' => 'digital',
             'signed_at' => now(),
             'status' => AgreementStatus::Signed,

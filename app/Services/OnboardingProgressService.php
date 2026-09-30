@@ -6,6 +6,37 @@ use App\Models\Partner;
 
 class OnboardingProgressService
 {
+    /**
+     * Every role a partner contact can hold, in the order the form offers them.
+     *
+     * Shared with the forms so the Contacts page and the review summary cannot
+     * drift apart on wording.
+     *
+     * @return array<string, string>
+     */
+    public static function contactRoles(): array
+    {
+        return [
+            'session_lead' => 'Session Lead',
+            'comms_lead' => 'Communications Lead',
+            'media_lead' => 'Media Contact',
+            'additional' => 'Additional Contact',
+        ];
+    }
+
+    /**
+     * The two contacts every partner must name. Both are required before the
+     * Contacts section counts as done — the forms say so up front, because
+     * partners were adding two contacts of any role and wondering why the
+     * section stayed short of 100%.
+     *
+     * @return array<string, string>
+     */
+    public static function mandatoryContactRoles(): array
+    {
+        return array_intersect_key(self::contactRoles(), array_flip(['session_lead', 'comms_lead']));
+    }
+
     public function calculate(Partner $partner): array
     {
         return [
@@ -66,35 +97,28 @@ class OnboardingProgressService
             return 0;
         }
 
-        $fields = ['requirements', 'media_contact_name', 'media_contact_email'];
-        $filled = 0;
-        foreach ($fields as $field) {
-            if (! empty($branding->$field)) {
-                $filled++;
-            }
-        }
+        // The section asks one thing: what the partner needs from
+        // communications. Either the checklist or the free-text notes answers
+        // it. Branding assets are welcome but not every partner has one to
+        // send, so they do not gate the section.
+        $checklist = collect($branding->comms_checklist ?? [])->filter(fn ($value) => ! empty($value));
 
-        return (int) round(($filled / count($fields)) * 100);
+        return ! empty($branding->requirements) || $checklist->isNotEmpty() ? 100 : 0;
     }
 
     private function calculateContactsProgress(Partner $partner): int
     {
         $contacts = $partner->contacts;
-        if ($contacts->isEmpty()) {
-            return 0;
-        }
+        $roles = array_keys(self::mandatoryContactRoles());
 
-        $hasSessionLead = $contacts->where('role', 'session_lead')->isNotEmpty();
-        $hasCommsLead = $contacts->where('role', 'comms_lead')->isNotEmpty();
+        // Both mandatory contacts, each with a name and an email, is the whole
+        // section: once they are there the partner is at 100%.
+        $named = collect($roles)->filter(fn (string $role) => $contacts
+            ->where('role', $role)
+            ->filter(fn ($contact) => filled($contact->name) && filled($contact->email))
+            ->isNotEmpty(),
+        )->count();
 
-        $score = 0;
-        if ($hasSessionLead) {
-            $score += 50;
-        }
-        if ($hasCommsLead) {
-            $score += 50;
-        }
-
-        return $score;
+        return (int) round(($named / count($roles)) * 100);
     }
 }

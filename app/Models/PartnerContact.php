@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['partner_id', 'name', 'email', 'phone', 'role', 'organization'])]
+#[Fillable(['partner_id', 'name', 'email', 'phone', 'role', 'designation', 'organization'])]
 class PartnerContact extends Model
 {
     use HasFactory;

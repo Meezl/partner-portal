@@ -18,9 +18,6 @@ class BrandingRequirementFactory extends Factory
         return [
             'partner_id' => Partner::factory(),
             'requirements' => 'Use approved AHAIC cobranding guidelines.',
-            'media_contact_name' => fake()->name(),
-            'media_contact_email' => fake()->safeEmail(),
-            'media_contact_phone' => fake()->phoneNumber(),
             'assets' => ['branding/logo-pack.zip'],
         ];
     }

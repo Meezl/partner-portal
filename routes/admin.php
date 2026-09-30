@@ -82,6 +82,8 @@ Route::middleware(['auth', 'verified', 'role:super_admin,admin,finance,programme
         Route::put('/scheduling/sessions/{session}/update-schedule', [SchedulingController::class, 'updateSchedule'])->name('scheduling.update');
         Route::delete('/scheduling/sessions/{session}/schedule', [SchedulingController::class, 'destroySchedule'])->name('scheduling.destroy');
         Route::get('/scheduling/conflicts', [SchedulingController::class, 'conflicts'])->name('scheduling.conflicts');
+        Route::get('/scheduling/slots', [SchedulingController::class, 'slots'])->name('scheduling.slots');
+        Route::delete('/scheduling/slots/{slot}', [SchedulingController::class, 'releaseSlot'])->name('scheduling.slots.release');
     });
 
     // Room Management

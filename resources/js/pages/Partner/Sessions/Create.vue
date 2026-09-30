@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import PartnerLayout from '@/layouts/PartnerLayout.vue';
 import { formatCalendarDate } from '@/lib/utils';
-import type { Conference, Partner, SessionFormat, SessionSlot } from '@/types/partner';
+import type { Conference, Partner, SeatingArrangement, SessionFormat, SessionSlot } from '@/types/partner';
 
 defineOptions({ layout: PartnerLayout });
 
@@ -20,6 +20,8 @@ defineProps<{
     partner: Partner;
     conference?: Conference | null;
     availableSlots?: SessionSlot[];
+    /** The two seating arrangements the venue offers, from the server. */
+    seatingArrangements: { value: SeatingArrangement; label: string }[];
 }>();
 
 const form = useForm({
@@ -36,7 +38,7 @@ const form = useForm({
     special_requirements: {
         av_equipment: false,
         translation: false,
-        seating_type: 'theater',
+        seating_type: 'theatre' as SeatingArrangement,
         catering: false,
     },
 });
@@ -83,13 +85,6 @@ const sessionFormats: { value: SessionFormat; label: string }[] = [
     { value: 'side_event', label: 'Side Event' },
 ];
 
-const seatingTypes = [
-    { value: 'theater', label: 'Theater' },
-    { value: 'classroom', label: 'Classroom' },
-    { value: 'boardroom', label: 'Boardroom' },
-    { value: 'u_shape', label: 'U-Shape' },
-    { value: 'round_tables', label: 'Round Tables' },
-];
 </script>
 
 <template>
@@ -152,7 +147,29 @@ const seatingTypes = [
                             <InputError :message="form.errors.expected_participants" />
                         </div>
 
-                        <div class="flex items-center gap-3 pt-6">
+                        <div class="space-y-2">
+                            <Label>Seating Arrangement</Label>
+                            <Select v-model="form.special_requirements.seating_type">
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select seating" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem v-for="seat in seatingArrangements" :key="seat.value" :value="seat.value">
+                                        {{ seat.label }}
+                                    </SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <InputError :message="form.errors['special_requirements.seating_type']" />
+                        </div>
+
+                        <div class="space-y-2 sm:col-span-2">
+                            <p class="text-muted-foreground text-xs">
+                                Together these two decide which rooms can host your session, so only slots
+                                in a room that seats your group that way are offered below.
+                            </p>
+                        </div>
+
+                        <div class="flex items-center gap-3">
                             <Checkbox id="is_open" v-model="form.is_open" />
                             <Label for="is_open" class="cursor-pointer">Open to all conference attendees</Label>
                         </div>
@@ -175,12 +192,14 @@ const seatingTypes = [
                     <SessionSlotPicker
                         :slots="availableSlots ?? []"
                         v-model="form.session_slot_id"
+                        :expected-participants="form.expected_participants"
+                        :seating="form.special_requirements.seating_type"
                         allow-clear
                     />
                     <InputError :message="form.errors.session_slot_id" />
 
                     <div v-if="form.session_slot_id" class="space-y-2 border-t pt-4">
-                        <Label for="slot_reason">Note for the partnerships team (optional)</Label>
+                        <Label for="slot_reason">Any other additional comment (optional)</Label>
                         <textarea
                             id="slot_reason"
                             v-model="form.slot_reason"
@@ -248,7 +267,7 @@ const seatingTypes = [
             <Card>
                 <CardHeader>
                     <CardTitle>Special Requirements</CardTitle>
-                    <CardDescription>Equipment, translation, seating, and catering needs.</CardDescription>
+                    <CardDescription>Equipment, translation, and catering needs. Seating is set above, with the expected headcount.</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <div class="grid gap-6 sm:grid-cols-2">
@@ -266,20 +285,6 @@ const seatingTypes = [
                                 v-model="form.special_requirements.translation"
                             />
                             <Label for="translation" class="cursor-pointer">Translation Services</Label>
-                        </div>
-
-                        <div class="space-y-2">
-                            <Label>Seating Type</Label>
-                            <Select v-model="form.special_requirements.seating_type">
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Select seating" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem v-for="seat in seatingTypes" :key="seat.value" :value="seat.value">
-                                        {{ seat.label }}
-                                    </SelectItem>
-                                </SelectContent>
-                            </Select>
                         </div>
 
                         <div class="flex items-center gap-3">

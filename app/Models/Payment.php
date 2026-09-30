@@ -3,12 +3,13 @@
 namespace App\Models;
 
 use App\Enums\PaymentStatus;
+use App\Enums\PaymentType;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['invoice_id', 'partner_id', 'amount', 'currency', 'payment_method', 'transaction_reference', 'supporting_document_path', 'status', 'confirmed_by', 'confirmed_at'])]
+#[Fillable(['invoice_id', 'partner_id', 'payment_type', 'amount', 'currency', 'payment_method', 'transaction_reference', 'supporting_document_path', 'status', 'confirmed_by', 'confirmed_at'])]
 class Payment extends Model
 {
     use HasFactory;
@@ -22,6 +23,7 @@ class Payment extends Model
     {
         return [
             'status' => PaymentStatus::class,
+            'payment_type' => PaymentType::class,
             'amount' => 'decimal:2',
             'confirmed_at' => 'datetime',
         ];

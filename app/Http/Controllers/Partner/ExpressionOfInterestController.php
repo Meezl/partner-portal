@@ -52,6 +52,7 @@ class ExpressionOfInterestController extends Controller
         $validated = $request->validate([
             'organization_name' => ['nullable', 'string', 'max:255'],
             'contact_person' => ['nullable', 'string', 'max:255'],
+            'contact_title' => ['nullable', 'string', 'max:255'],
             'email' => ['nullable', 'email', 'max:255'],
             'phone' => ['nullable', 'string', 'max:50'],
             'physical_address' => ['nullable', 'string', 'max:500'],
@@ -71,6 +72,7 @@ class ExpressionOfInterestController extends Controller
             $partner->update([
                 'organization_name' => $validated['organization_name'] ?? $partner->organization_name,
                 'contact_person' => $validated['contact_person'] ?? $partner->contact_person,
+                'contact_title' => $validated['contact_title'] ?? $partner->contact_title,
                 'email' => $validated['email'] ?? $partner->email,
                 'phone' => $validated['phone'] ?? $partner->phone,
                 'physical_address' => $validated['physical_address'] ?? $partner->physical_address,
@@ -82,6 +84,7 @@ class ExpressionOfInterestController extends Controller
                 'conference_id' => $conference?->id,
                 'organization_name' => $validated['organization_name'] ?? '',
                 'contact_person' => $validated['contact_person'] ?? '',
+                'contact_title' => $validated['contact_title'] ?? null,
                 'email' => $validated['email'] ?? $user->email,
                 'phone' => $validated['phone'] ?? null,
                 'physical_address' => $validated['physical_address'] ?? null,
@@ -99,7 +102,7 @@ class ExpressionOfInterestController extends Controller
         $this->syncUserPartnerLink($user, $partner);
 
         // Sync selected package via pivot table
-        if (!empty($validated['package_id'])) {
+        if (! empty($validated['package_id'])) {
             $partner->packages()->sync([$validated['package_id']]);
         }
 
@@ -114,6 +117,8 @@ class ExpressionOfInterestController extends Controller
         $validated = $request->validate([
             'organization_name' => ['required', 'string', 'max:255'],
             'contact_person' => ['required', 'string', 'max:255'],
+            // The signatory's job title, printed on the partnership agreement.
+            'contact_title' => ['nullable', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255'],
             'phone' => ['nullable', 'string', 'max:50'],
             'physical_address' => ['nullable', 'string', 'max:500'],
@@ -133,6 +138,8 @@ class ExpressionOfInterestController extends Controller
             $partner->update([
                 'organization_name' => $validated['organization_name'],
                 'contact_person' => $validated['contact_person'],
+                'contact_title' => $validated['contact_title'] ?? null,
+                'contact_title' => $validated['contact_title'] ?? null,
                 'email' => $validated['email'],
                 'phone' => $validated['phone'] ?? null,
                 'physical_address' => $validated['physical_address'] ?? null,
@@ -146,6 +153,8 @@ class ExpressionOfInterestController extends Controller
                 'conference_id' => $conference?->id,
                 'organization_name' => $validated['organization_name'],
                 'contact_person' => $validated['contact_person'],
+                'contact_title' => $validated['contact_title'] ?? null,
+                'contact_title' => $validated['contact_title'] ?? null,
                 'email' => $validated['email'],
                 'phone' => $validated['phone'] ?? null,
                 'physical_address' => $validated['physical_address'] ?? null,
@@ -183,6 +192,8 @@ class ExpressionOfInterestController extends Controller
         $validated = $request->validate([
             'organization_name' => ['required', 'string', 'max:255'],
             'contact_person' => ['required', 'string', 'max:255'],
+            // The signatory's job title, printed on the partnership agreement.
+            'contact_title' => ['nullable', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255'],
             'phone' => ['nullable', 'string', 'max:50'],
             'physical_address' => ['nullable', 'string', 'max:500'],
@@ -199,6 +210,7 @@ class ExpressionOfInterestController extends Controller
         $partner->update([
             'organization_name' => $validated['organization_name'],
             'contact_person' => $validated['contact_person'],
+            'contact_title' => $validated['contact_title'] ?? null,
             'email' => $validated['email'],
             'phone' => $validated['phone'] ?? null,
             'physical_address' => $validated['physical_address'] ?? null,
@@ -233,7 +245,7 @@ class ExpressionOfInterestController extends Controller
                 ->when($excludeId, fn ($q) => $q->where('id', '!=', $excludeId))
                 ->exists()
         ) {
-            $slug = $baseSlug . '-' . $counter;
+            $slug = $baseSlug.'-'.$counter;
             $counter++;
         }
 

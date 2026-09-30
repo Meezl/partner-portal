@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Enums\PartnerStatus;
+use App\Enums\SeatingArrangement;
 use App\Enums\SessionFormat;
 use App\Enums\SessionStatus;
 use App\Enums\UserRole;
@@ -105,7 +106,7 @@ class DemoSessionSeeder extends Seeder
                 'special_requirements' => [
                     'av_equipment' => true,
                     'translation' => $s['translation'] ?? false,
-                    'seating_type' => $slot->default_format === 'round' ? 'round_tables' : 'theater',
+                    'seating_type' => $slot->default_format === 'round' ? SeatingArrangement::RoundTable->value : SeatingArrangement::Theatre->value,
                     'catering' => $slot->slot_category === 'breakfast' || $slot->slot_category === 'reception',
                 ],
                 'session_slot_id' => $isPending ? null : $slot->id,

@@ -3,6 +3,7 @@ import { router } from '@inertiajs/vue3';
 import {
     Building2,
     CalendarDays,
+    Image as ImageIcon,
     Megaphone,
     Users,
     Send,
@@ -11,11 +12,13 @@ import {
 import { computed, ref } from 'vue';
 import BlockedActionHint from '@/components/shared/BlockedActionHint.vue';
 import ConfirmDialog from '@/components/shared/ConfirmDialog.vue';
+import FileLink from '@/components/shared/FileLink.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import PartnerLayout from '@/layouts/PartnerLayout.vue';
+import { filledSocialLinks, tickedChecklistLabels } from '@/lib/checklists.js';
 import { canFinalizeSubmission, getIncompleteOnboardingSections } from '@/lib/onboarding-workflow.js';
 import type { BrandingRequirement, Partner, OnboardingProgress as OnboardingProgressType } from '@/types/partner';
 
@@ -24,7 +27,14 @@ defineOptions({ layout: PartnerLayout });
 const props = defineProps<{
     partner: Partner;
     progress: OnboardingProgressType;
+    /** Option key → label for the exhibition checklist, from the server. */
+    exhibitionOptions: Record<string, string>;
+    /** Option key → label for the communications checklist, from the server. */
+    commsOptions: Record<string, string>;
+    /** Role key → label, so the summary matches the Contacts form. */
+    contactRoles: Record<string, string>;
 }>();
+
 
 const showSubmitDialog = ref(false);
 
@@ -37,10 +47,29 @@ function formatLabel(value: string) {
     return value.charAt(0).toUpperCase() + value.slice(1).replace(/_/g, ' ');
 }
 
-const socialMedia = props.partner.social_media ?? {};
+/**
+ * The name to save the logo under. Uploads made before the name was recorded
+ * fall back to the hashed storage filename.
+ */
+const logoName = computed(() => {
+    if (props.partner.logo_name) {
+        return props.partner.logo_name;
+    }
+
+    const path = props.partner.logo_path ?? '';
+
+    return decodeURIComponent(path.split('/').pop() || 'logo');
+});
 const sessions = props.partner.sessions ?? [];
 const contacts = props.partner.contacts ?? [];
-const branding = (props.partner.brandingRequirement ?? null) as BrandingRequirement | null;
+const branding = (props.partner.branding_requirement ?? null) as BrandingRequirement | null;
+const exhibitionRequirements = computed(() =>
+    tickedChecklistLabels(props.exhibitionOptions, props.partner.exhibition_requirements ?? null),
+);
+const commsRequirements = computed(() =>
+    tickedChecklistLabels(props.commsOptions, branding?.comms_checklist ?? null),
+);
+const socialLinks = computed(() => filledSocialLinks(props.partner.social_media));
 const canSubmit = computed(() =>
     canFinalizeSubmission(props.progress, sessions.length),
 );
@@ -91,34 +120,38 @@ const submitBlockers = computed(() => {
                 </CardTitle>
             </CardHeader>
             <CardContent class="space-y-4">
-                <div v-if="branding?.requirements">
-                    <p class="text-muted-foreground text-sm">Requirements</p>
-                    <p class="mt-1 text-sm">{{ branding.requirements }}</p>
-                </div>
-
-                <div class="grid gap-4 sm:grid-cols-3">
-                    <div>
-                        <p class="text-muted-foreground text-sm">Media Contact</p>
-                        <p class="font-medium">{{ branding?.media_contact_name ?? 'Not provided' }}</p>
-                    </div>
-                    <div>
-                        <p class="text-muted-foreground text-sm">Media Email</p>
-                        <p class="font-medium">{{ branding?.media_contact_email ?? 'Not provided' }}</p>
-                    </div>
-                    <div>
-                        <p class="text-muted-foreground text-sm">Media Phone</p>
-                        <p class="font-medium">{{ branding?.media_contact_phone ?? 'Not provided' }}</p>
-                    </div>
-                </div>
-
-                <div v-if="branding?.assets && branding.assets.length > 0">
-                    <p class="text-muted-foreground mb-2 text-sm">Uploaded Assets</p>
+                <div v-if="commsRequirements.length > 0">
+                    <p class="text-muted-foreground mb-2 text-sm">Requested</p>
                     <div class="flex flex-wrap gap-2">
-                        <Badge v-for="(asset, index) in branding.assets" :key="index" variant="outline">
-                            Asset {{ index + 1 }}
+                        <Badge v-for="(label, index) in commsRequirements" :key="index" variant="outline">
+                            {{ label }}
                         </Badge>
                     </div>
                 </div>
+
+                <div v-if="branding?.requirements">
+                    <p class="text-muted-foreground text-sm">Additional comments</p>
+                    <p class="mt-1 text-sm">{{ branding.requirements }}</p>
+                </div>
+
+                <div v-if="branding?.assets && branding.assets.length > 0">
+                    <p class="text-muted-foreground mb-2 text-sm">
+                        Uploaded assets ({{ branding.assets.length }})
+                    </p>
+                    <ul class="space-y-1">
+                        <li v-for="(asset, index) in branding.assets" :key="index">
+                            <FileLink :name="asset.name" :url="asset.url" />
+                        </li>
+                    </ul>
+                </div>
+
+                <p
+                    v-if="commsRequirements.length === 0 && !branding?.requirements && !branding?.assets?.length"
+                    class="text-muted-foreground text-sm"
+                >
+                    Nothing added yet — tell the communications team what you need, and upload your
+                    branding assets.
+                </p>
             </CardContent>
         </Card>
 
@@ -130,6 +163,27 @@ const submitBlockers = computed(() => {
                 </CardTitle>
             </CardHeader>
             <CardContent class="space-y-4">
+                <div class="flex items-start gap-4">
+                    <div class="bg-muted flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-lg border">
+                        <img
+                            v-if="partner.logo_path"
+                            :src="partner.logo_path"
+                            :alt="`${partner.organization_name} logo`"
+                            class="h-full w-full object-contain"
+                        />
+                        <ImageIcon v-else class="text-muted-foreground h-7 w-7" />
+                    </div>
+                    <div class="min-w-0 flex-1 space-y-1">
+                        <p class="text-muted-foreground text-sm">Logo</p>
+                        <FileLink
+                            v-if="partner.logo_path"
+                            :name="logoName"
+                            :url="partner.logo_path"
+                        />
+                        <p v-else class="text-sm">No logo uploaded.</p>
+                    </div>
+                </div>
+
                 <div class="grid gap-4 sm:grid-cols-2">
                     <div>
                         <p class="text-muted-foreground text-sm">Organization Name</p>
@@ -158,17 +212,29 @@ const submitBlockers = computed(() => {
                     <p class="mt-1 text-sm">{{ partner.description }}</p>
                 </div>
 
-                <div v-if="Object.keys(socialMedia).length > 0">
+                <div v-if="socialLinks.length > 0">
                     <p class="text-muted-foreground mb-2 text-sm">Social Media</p>
+                    <ul class="space-y-1 text-sm">
+                        <li v-for="[platform, url] in socialLinks" :key="platform">
+                            <span class="text-muted-foreground">{{ formatLabel(platform) }}:</span>
+                            <a :href="url" target="_blank" rel="noopener" class="ml-1 underline underline-offset-2">
+                                {{ url }}
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+
+                <div v-if="exhibitionRequirements.length > 0">
+                    <p class="text-muted-foreground mb-2 text-sm">Exhibition Requirements</p>
                     <div class="flex flex-wrap gap-2">
-                        <Badge v-for="(url, platform) in socialMedia" :key="platform" variant="outline">
-                            {{ formatLabel(String(platform)) }}: {{ url }}
+                        <Badge v-for="(label, index) in exhibitionRequirements" :key="index" variant="outline">
+                            {{ label }}
                         </Badge>
                     </div>
                 </div>
 
                 <div v-if="partner.exhibition_preferences">
-                    <p class="text-muted-foreground text-sm">Exhibition Preferences</p>
+                    <p class="text-muted-foreground text-sm">Additional comments</p>
                     <p class="mt-1 text-sm">{{ partner.exhibition_preferences }}</p>
                 </div>
             </CardContent>
@@ -226,9 +292,10 @@ const submitBlockers = computed(() => {
                     <div v-for="contact in contacts" :key="contact.id" class="flex items-center justify-between rounded-lg border p-3">
                         <div>
                             <p class="font-medium">{{ contact.name }}</p>
+                            <p v-if="contact.designation" class="text-muted-foreground text-xs">{{ contact.designation }}</p>
                             <p class="text-muted-foreground text-xs">{{ contact.email }} {{ contact.phone ? '| ' + contact.phone : '' }}</p>
                         </div>
-                        <Badge variant="outline">{{ formatLabel(contact.role) }}</Badge>
+                        <Badge variant="outline">{{ contactRoles[contact.role] ?? formatLabel(contact.role) }}</Badge>
                     </div>
                 </div>
             </CardContent>

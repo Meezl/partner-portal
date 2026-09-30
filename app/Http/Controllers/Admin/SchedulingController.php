@@ -15,6 +15,8 @@ use App\Notifications\SessionUnscheduledNotification;
 use App\Services\ConflictDetectionService;
 use App\Services\RoomAllocationMatrixService;
 use App\Services\SessionScheduleSynchroniser;
+use App\Services\SessionTimeRequestService;
+use App\Services\SlotOccupancyReconciler;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -72,6 +74,69 @@ class SchedulingController extends Controller
         return Inertia::render('Admin/Scheduling/Sessions', [
             'sessions' => $sessions,
         ]);
+    }
+
+    /**
+     * Slot inventory: every bookable slot and who, if anyone, has it.
+     *
+     * The board only shows sessions that reached the programme (submitted and
+     * beyond), so a slot held by a partner's unfinished draft was taken with
+     * nothing anywhere to say so — the next partner to pick it was told it
+     * "was just taken by another partner" over an apparently empty board. This
+     * is where that occupancy is visible, and where it can be handed back.
+     */
+    public function slots(SlotOccupancyReconciler $reconciler): Response
+    {
+        $conference = Conference::where('status', 'active')->latest()->first();
+
+        $slots = SessionSlot::query()
+            ->with([
+                'defaultRoom:id,name',
+                'claimedBySession:id,partner_id,title,status',
+                'claimedBySession.partner:id,organization_name',
+                'heldBySession:id,partner_id,title,status',
+                'heldBySession.partner:id,organization_name',
+            ])
+            ->when($conference, fn ($query) => $query->where('conference_id', $conference->id))
+            ->orderBy('day_index')
+            ->orderBy('sort_order')
+            ->get();
+
+        return Inertia::render('Admin/Scheduling/Slots', [
+            'conference' => $conference,
+            'slots' => $slots,
+            // Surfaced so a broken row is visible here rather than only to
+            // whoever runs `php artisan slots:reconcile`.
+            'inconsistencies' => $reconciler->problems($conference?->id)
+                ->map(fn (array $problem) => [
+                    'slot_id' => $problem['slot']->id,
+                    'kind' => $problem['kind'],
+                    'detail' => $problem['detail'],
+                ])
+                ->values(),
+        ]);
+    }
+
+    /**
+     * Hand a slot back to the pool.
+     */
+    public function releaseSlot(Request $request, SessionSlot $slot): RedirectResponse
+    {
+        $validated = $request->validate([
+            'reason' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        if ($slot->isAvailable()) {
+            return back()->with('error', 'That slot is already free.');
+        }
+
+        app(SessionTimeRequestService::class)->releaseSlot(
+            $slot,
+            $request->user(),
+            $validated['reason'] ?? null,
+        );
+
+        return back()->with('success', sprintf('%s is available again.', $slot->slot_code));
     }
 
     /**

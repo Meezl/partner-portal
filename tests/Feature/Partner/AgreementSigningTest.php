@@ -48,7 +48,7 @@ it('lets the partner sign digitally', function () {
     [$user, $partner] = partnerAwaitingSignature();
 
     $this->actingAs($user)
-        ->post(route('partner.agreement.sign'), ['signer_name' => 'Jane Partner', 'accept_terms' => true])
+        ->post(route('partner.agreement.sign'), signingPayload())
         ->assertSessionHasNoErrors()
         ->assertSessionHas('success');
 
@@ -79,7 +79,7 @@ it('serves the partner their own signed copy once signed', function (string $met
     [$user, $partner] = partnerAwaitingSignature();
 
     $method === 'digital'
-        ? $this->actingAs($user)->post(route('partner.agreement.sign'), ['signer_name' => 'Jane Partner', 'accept_terms' => true])
+        ? $this->actingAs($user)->post(route('partner.agreement.sign'), signingPayload())
         : $this->actingAs($user)->post(route('partner.agreement.upload'), ['signed_document' => signedPdf()]);
 
     $agreement = $partner->agreements()->latest()->first();
@@ -94,7 +94,7 @@ it('tells the team however the agreement was signed', function (string $method, 
     [$user] = partnerAwaitingSignature();
 
     $method === 'digital'
-        ? $this->actingAs($user)->post(route('partner.agreement.sign'), ['signer_name' => 'Jane Partner', 'accept_terms' => true])
+        ? $this->actingAs($user)->post(route('partner.agreement.sign'), signingPayload())
         : $this->actingAs($user)->post(route('partner.agreement.upload'), ['signed_document' => signedPdf()]);
 
     Notification::assertSentOnDemand(
@@ -125,7 +125,7 @@ it('only accepts the signed copy as a PDF', function () {
 it('does not let a second signature replace the first', function (string $first, string $second) {
     [$user, $partner] = partnerAwaitingSignature();
     $sign = fn (string $method) => $method === 'digital'
-        ? $this->actingAs($user)->post(route('partner.agreement.sign'), ['signer_name' => 'Jane Partner', 'accept_terms' => true])
+        ? $this->actingAs($user)->post(route('partner.agreement.sign'), signingPayload())
         : $this->actingAs($user)->post(route('partner.agreement.upload'), ['signed_document' => signedPdf()]);
 
     $sign($first);
