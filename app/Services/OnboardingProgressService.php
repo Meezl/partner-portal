@@ -56,7 +56,7 @@ class OnboardingProgressService
 
     private function calculateOrganizationProgress(Partner $partner): int
     {
-        $fields = ['logo_path', 'description', 'social_media', 'number_of_participants'];
+        $fields = ['logo_path', 'description', 'social_media'];
         $filled = 0;
         foreach ($fields as $field) {
             if (! empty($partner->$field)) {
@@ -74,7 +74,7 @@ class OnboardingProgressService
             return 0;
         }
 
-        $totalRequired = ['title', 'description', 'format', 'target_audience', 'expected_participants'];
+        $totalRequired = ['title', 'description', 'format', 'expected_participants'];
         $totalProgress = 0;
 
         foreach ($sessions as $session) {

@@ -12,6 +12,7 @@ use App\Notifications\InvoiceSentNotification;
 use App\Rules\SignatureImage;
 use App\Services\AgreementGeneratorService;
 use App\Services\InvoiceGeneratorService;
+use App\Services\NewPartnerNotifier;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Notification;
@@ -166,13 +167,18 @@ class AgreementController extends Controller
 
     /**
      * Finance has no other prompt that an invoice is now outstanding, however
-     * the agreement was signed.
+     * the agreement was signed. The partnerships team and the partner hear
+     * about it too, but as a new partnership rather than as an invoice.
      */
     private function notifyTeam(Agreement $agreement): void
     {
+        $agreement = $agreement->fresh('partner');
+
         Notification::route('mail', array_values(array_filter(
             (array) (config('ahaic.team_emails') ?: [config('ahaic.central_email')])
-        )))->notify(new AgreementSignedNotification($agreement->fresh('partner')));
+        )))->notify(new AgreementSignedNotification($agreement));
+
+        app(NewPartnerNotifier::class)->notifySigned($agreement);
     }
 
     private function completeAgreement(Request $request, int $partnerId): void

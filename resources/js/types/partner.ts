@@ -19,12 +19,19 @@ export type PackageTier =
     | 'exhibitor';
 
 export type SessionFormat =
-    | 'panel'
-    | 'workshop'
-    | 'plenary'
     | 'roundtable'
-    | 'exhibition'
-    | 'side_event';
+    | 'panel'
+    | 'fireside_chat'
+    | 'keynote'
+    | 'workshop'
+    | 'interactive_dialogue'
+    | 'live_studio'
+    | 'stand_up'
+    | 'breakout'
+    | 'networking'
+    | 'cocktail'
+    | 'showcase'
+    | 'other';
 
 export type SessionStatus =
     | 'draft'
@@ -101,7 +108,16 @@ export interface Partner {
     email: string;
     phone: string | null;
     physical_address: string | null;
+    physical_city: string | null;
+    physical_country: string | null;
+    physical_postal_code: string | null;
     billing_address: string | null;
+    billing_city: string | null;
+    billing_country: string | null;
+    billing_postal_code: string | null;
+    /** The four parts joined for display; appended by the Partner model. */
+    physical_address_formatted?: string | null;
+    billing_address_formatted?: string | null;
     tax_details: string | null;
     customer_code: string | null;
     logo_path: string | null;
@@ -212,8 +228,6 @@ export interface SessionSlot {
         id: number;
         name: string;
         capacity?: number | null;
-        theatre_capacity?: number | null;
-        round_capacity?: number | null;
     } | null;
 }
 
@@ -224,10 +238,15 @@ export interface ConferenceSession {
     title: string;
     description: string | null;
     format: SessionFormat;
+    /** Retired from the session form; kept for sessions captured earlier. */
     organizers: string[] | null;
+    /** Co-hosting and partner organizations. */
     co_hosts: string[] | null;
+    /** Retired from the session form; kept for sessions captured earlier. */
     target_audience: string | null;
-    expected_participants: number | null;
+    /** A headcount band, e.g. "30-50". Mirrors App\Enums\ParticipantRange. */
+    expected_participants: string | null;
+    /** Retired from the session form; kept for sessions captured earlier. */
     is_open: boolean;
     special_requirements: Record<string, unknown> | null;
     status: SessionStatus;
@@ -272,10 +291,6 @@ export interface Room {
     building: string | null;
     floor: string | null;
     capacity: number;
-    /** Seats theatre style. Null when the venue does not lay the room out that way. */
-    theatre_capacity: number | null;
-    /** Seats at round tables. Null when the venue does not lay the room out that way. */
-    round_capacity: number | null;
     format_suitability: string[] | null;
     equipment: Record<string, unknown> | null;
     is_active: boolean;
@@ -350,9 +365,6 @@ export type Checklist = Record<string, boolean | string | null> & { other?: stri
 export type CommsChecklist = Checklist;
 
 export type ExhibitionChecklist = Checklist;
-
-/** The two seating arrangements the venue offers. Mirrors App\Enums\SeatingArrangement. */
-export type SeatingArrangement = 'theatre' | 'round_table';
 
 /** An uploaded branding file: the name the partner gave it, and where it lives. */
 export interface BrandingAsset {

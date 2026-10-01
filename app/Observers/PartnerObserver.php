@@ -31,7 +31,7 @@ class PartnerObserver
             'auditable_id' => $partner->id,
             'user_id' => auth()->id(),
             'action' => $action,
-            'old_values' => $partner->wasChanged() ? collect($partner->getOriginal())->only($partner->getChanges())->all() : null,
+            'old_values' => $partner->wasChanged() ? collect($partner->getOriginal())->only(array_keys($partner->getChanges()))->all() : null,
             'new_values' => array_merge($partner->getChanges(), $extra),
             'ip_address' => request()->ip(),
         ]);

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useForm } from '@inertiajs/vue3';
 import { Save, Plus, X } from 'lucide-vue-next';
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import InputError from '@/components/InputError.vue';
 import SessionSlotPicker from '@/components/shared/SessionSlotPicker.vue';
 import { Button } from '@/components/ui/button';
@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import PartnerLayout from '@/layouts/PartnerLayout.vue';
 import { formatCalendarDate } from '@/lib/utils';
-import type { Conference, Partner, SeatingArrangement, SessionFormat, SessionSlot } from '@/types/partner';
+import type { Conference, Partner, SessionFormat, SessionSlot } from '@/types/partner';
 
 defineOptions({ layout: PartnerLayout });
 
@@ -20,44 +20,34 @@ defineProps<{
     partner: Partner;
     conference?: Conference | null;
     availableSlots?: SessionSlot[];
-    /** The two seating arrangements the venue offers, from the server. */
-    seatingArrangements: { value: SeatingArrangement; label: string }[];
+    /** Headcount bands a session picks from, from the server. */
+    participantRanges: { value: string; label: string }[];
 }>();
 
 const form = useForm({
     title: '',
     description: '',
     format: '' as SessionFormat | '',
-    organizers: [] as string[],
     co_hosts: [] as string[],
-    target_audience: '',
-    expected_participants: null as number | null,
-    is_open: true,
+    expected_participants: null as string | null,
     session_slot_id: null as number | null,
     slot_reason: '',
     special_requirements: {
         av_equipment: false,
         translation: false,
-        seating_type: 'theatre' as SeatingArrangement,
         catering: false,
     },
 });
 
-const newOrganizer = ref('');
+const descriptionWordCount = computed(() => {
+    const text = form.description.trim();
+
+    return text ? text.split(/\s+/).length : 0;
+});
+
+const descriptionTooLong = computed(() => descriptionWordCount.value > 150);
+
 const newCoHost = ref('');
-
-function addOrganizer() {
-    const val = newOrganizer.value.trim();
-
-    if (val && !form.organizers.includes(val)) {
-        form.organizers.push(val);
-        newOrganizer.value = '';
-    }
-}
-
-function removeOrganizer(index: number) {
-    form.organizers.splice(index, 1);
-}
 
 function addCoHost() {
     const val = newCoHost.value.trim();
@@ -77,12 +67,19 @@ function submit() {
 }
 
 const sessionFormats: { value: SessionFormat; label: string }[] = [
-    { value: 'panel', label: 'Panel Discussion' },
-    { value: 'workshop', label: 'Workshop' },
-    { value: 'plenary', label: 'Plenary' },
     { value: 'roundtable', label: 'Roundtable' },
-    { value: 'exhibition', label: 'Exhibition' },
-    { value: 'side_event', label: 'Side Event' },
+    { value: 'panel', label: 'Panel Discussion' },
+    { value: 'fireside_chat', label: 'Fireside Chat' },
+    { value: 'keynote', label: 'Keynote / Featured Address' },
+    { value: 'workshop', label: 'Workshop / Masterclass' },
+    { value: 'interactive_dialogue', label: 'Interactive Dialogue' },
+    { value: 'live_studio', label: 'Live Studio Session' },
+    { value: 'stand_up', label: 'Stand-up Session' },
+    { value: 'breakout', label: 'Breakout Session' },
+    { value: 'networking', label: 'Networking / Reception' },
+    { value: 'cocktail', label: 'Cocktail' },
+    { value: 'showcase', label: 'Product / Solution Showcase' },
+    { value: 'other', label: 'Other' },
 ];
 
 </script>
@@ -109,6 +106,10 @@ const sessionFormats: { value: SessionFormat; label: string }[] = [
 
                     <div class="space-y-2">
                         <Label for="description">Description</Label>
+                        <p class="text-muted-foreground text-xs">
+                            Max 150 words. This will go to the website, the mobile app and any other
+                            session related material.
+                        </p>
                         <textarea
                             id="description"
                             v-model="form.description"
@@ -116,7 +117,12 @@ const sessionFormats: { value: SessionFormat; label: string }[] = [
                             class="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex w-full rounded-md border px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
                             placeholder="Describe the session objectives, topics, and format..."
                         />
-                        <InputError :message="form.errors.description" />
+                        <div class="flex items-center justify-between">
+                            <InputError :message="form.errors.description" />
+                            <span class="text-xs" :class="descriptionTooLong ? 'text-red-500' : 'text-muted-foreground'">
+                                {{ descriptionWordCount }} / 150 words
+                            </span>
+                        </div>
                     </div>
 
                     <div class="grid gap-4 sm:grid-cols-2">
@@ -136,42 +142,18 @@ const sessionFormats: { value: SessionFormat; label: string }[] = [
                         </div>
 
                         <div class="space-y-2">
-                            <Label for="target_audience">Target Audience</Label>
-                            <Input id="target_audience" v-model="form.target_audience" placeholder="e.g. Health policy makers, researchers" />
-                            <InputError :message="form.errors.target_audience" />
-                        </div>
-
-                        <div class="space-y-2">
-                            <Label for="expected_participants">Expected Participants</Label>
-                            <Input id="expected_participants" :model-value="form.expected_participants ?? undefined" @update:model-value="form.expected_participants = Number($event)" type="number" min="1" placeholder="e.g. 50" />
-                            <InputError :message="form.errors.expected_participants" />
-                        </div>
-
-                        <div class="space-y-2">
-                            <Label>Seating Arrangement</Label>
-                            <Select v-model="form.special_requirements.seating_type">
+                            <Label>Expected Participants</Label>
+                            <Select v-model="form.expected_participants">
                                 <SelectTrigger>
-                                    <SelectValue placeholder="Select seating" />
+                                    <SelectValue placeholder="Select a range" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem v-for="seat in seatingArrangements" :key="seat.value" :value="seat.value">
-                                        {{ seat.label }}
+                                    <SelectItem v-for="range in participantRanges" :key="range.value" :value="range.value">
+                                        {{ range.label }}
                                     </SelectItem>
                                 </SelectContent>
                             </Select>
-                            <InputError :message="form.errors['special_requirements.seating_type']" />
-                        </div>
-
-                        <div class="space-y-2 sm:col-span-2">
-                            <p class="text-muted-foreground text-xs">
-                                Together these two decide which rooms can host your session, so only slots
-                                in a room that seats your group that way are offered below.
-                            </p>
-                        </div>
-
-                        <div class="flex items-center gap-3">
-                            <Checkbox id="is_open" v-model="form.is_open" />
-                            <Label for="is_open" class="cursor-pointer">Open to all conference attendees</Label>
+                            <InputError :message="form.errors.expected_participants" />
                         </div>
                     </div>
                 </CardContent>
@@ -192,8 +174,6 @@ const sessionFormats: { value: SessionFormat; label: string }[] = [
                     <SessionSlotPicker
                         :slots="availableSlots ?? []"
                         v-model="form.session_slot_id"
-                        :expected-participants="form.expected_participants"
-                        :seating="form.special_requirements.seating_type"
                         allow-clear
                     />
                     <InputError :message="form.errors.session_slot_id" />
@@ -214,36 +194,14 @@ const sessionFormats: { value: SessionFormat; label: string }[] = [
 
             <Card>
                 <CardHeader>
-                    <CardTitle>Organizers &amp; Co-Hosts</CardTitle>
-                    <CardDescription>Add session organizers and co-hosting organizations.</CardDescription>
+                    <CardTitle>Co-Hosts / Partners</CardTitle>
+                    <CardDescription>Add the organizations co-hosting or partnering on this session.</CardDescription>
                 </CardHeader>
                 <CardContent class="space-y-6">
                     <div class="space-y-3">
-                        <Label>Organizers</Label>
+                        <Label>Co-Hosts / Partners</Label>
                         <div class="flex gap-2">
-                            <Input v-model="newOrganizer" placeholder="Add organizer name" @keydown.enter.prevent="addOrganizer" />
-                            <Button type="button" variant="outline" @click="addOrganizer">
-                                <Plus class="h-4 w-4" />
-                            </Button>
-                        </div>
-                        <div v-if="form.organizers.length > 0" class="flex flex-wrap gap-2">
-                            <span
-                                v-for="(org, i) in form.organizers"
-                                :key="i"
-                                class="bg-secondary inline-flex items-center gap-1 rounded-full px-3 py-1 text-sm"
-                            >
-                                {{ org }}
-                                <button type="button" @click="removeOrganizer(i)" class="hover:text-destructive ml-1">
-                                    <X class="h-3 w-3" />
-                                </button>
-                            </span>
-                        </div>
-                    </div>
-
-                    <div class="space-y-3">
-                        <Label>Co-Hosts</Label>
-                        <div class="flex gap-2">
-                            <Input v-model="newCoHost" placeholder="Add co-host organization" @keydown.enter.prevent="addCoHost" />
+                            <Input v-model="newCoHost" placeholder="Add a co-host or partner organization" @keydown.enter.prevent="addCoHost" />
                             <Button type="button" variant="outline" @click="addCoHost">
                                 <Plus class="h-4 w-4" />
                             </Button>
@@ -267,7 +225,7 @@ const sessionFormats: { value: SessionFormat; label: string }[] = [
             <Card>
                 <CardHeader>
                     <CardTitle>Special Requirements</CardTitle>
-                    <CardDescription>Equipment, translation, and catering needs. Seating is set above, with the expected headcount.</CardDescription>
+                    <CardDescription>Equipment, translation, and catering needs.</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <div class="grid gap-6 sm:grid-cols-2">

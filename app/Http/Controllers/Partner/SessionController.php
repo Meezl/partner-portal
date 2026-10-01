@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers\Partner;
 
+use App\Enums\ParticipantRange;
 use App\Enums\PartnerStatus;
-use App\Enums\SeatingArrangement;
 use App\Enums\SessionFormat;
 use App\Enums\SessionStatus;
 use App\Http\Controllers\Controller;
@@ -14,6 +14,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -60,7 +61,7 @@ class SessionController extends Controller
         return Inertia::render('Partner/Sessions/Create', [
             'partner' => $partner,
             'formats' => SessionFormat::cases(),
-            'seatingArrangements' => SeatingArrangement::options(),
+            'participantRanges' => ParticipantRange::options(),
             'conference' => $partner->conference,
             'availableSlots' => $this->timeRequests->availableSlotsFor($partner->conference_id),
         ]);
@@ -73,15 +74,6 @@ class SessionController extends Controller
 
         $requestedSlot = $validated['session_slot_id'] ?? null;
 
-        if ($requestedSlot) {
-            $this->timeRequests->assertSlotFits(
-                $partner->conference_id,
-                $requestedSlot,
-                $validated['expected_participants'] ?? null,
-                $this->seatingFrom($validated),
-            );
-        }
-
         DB::transaction(function () use ($validated, $partner, $requestedSlot, $request) {
             $session = ConferenceSession::create([
                 'partner_id' => $partner->id,
@@ -89,11 +81,8 @@ class SessionController extends Controller
                 'title' => $validated['title'],
                 'description' => $validated['description'] ?? null,
                 'format' => $validated['format'],
-                'organizers' => $validated['organizers'] ?? [],
                 'co_hosts' => $validated['co_hosts'] ?? [],
-                'target_audience' => $validated['target_audience'] ?? null,
                 'expected_participants' => $validated['expected_participants'] ?? null,
-                'is_open' => $validated['is_open'] ?? false,
                 'special_requirements' => $validated['special_requirements'] ?? [],
                 'status' => SessionStatus::Draft,
             ]);
@@ -140,7 +129,7 @@ class SessionController extends Controller
                 'schedule.timeSlot:id,date,start_time,end_time,label',
             ]),
             'formats' => SessionFormat::cases(),
-            'seatingArrangements' => SeatingArrangement::options(),
+            'participantRanges' => ParticipantRange::options(),
             'conference' => $partner->conference,
             'availableSlots' => $this->timeRequests->availableSlotsFor($partner->conference_id, $session),
         ]);
@@ -159,26 +148,14 @@ class SessionController extends Controller
         $newSlotId = $validated['session_slot_id'] ?? null;
         $timeRequested = false;
 
-        if ($newSlotId && $newSlotId !== $session->session_slot_id) {
-            $this->timeRequests->assertSlotFits(
-                $session->conference_id,
-                $newSlotId,
-                $validated['expected_participants'] ?? null,
-                $this->seatingFrom($validated),
-            );
-        }
-
         DB::transaction(function () use ($validated, $session, $newSlotId, $request, &$timeRequested) {
             // Everything except date/time saves straight away.
             $session->update([
                 'title' => $validated['title'],
                 'description' => $validated['description'] ?? null,
                 'format' => $validated['format'],
-                'organizers' => $validated['organizers'] ?? [],
                 'co_hosts' => $validated['co_hosts'] ?? [],
-                'target_audience' => $validated['target_audience'] ?? null,
                 'expected_participants' => $validated['expected_participants'] ?? null,
-                'is_open' => $validated['is_open'] ?? false,
                 'special_requirements' => $validated['special_requirements'] ?? [],
             ]);
 
@@ -227,35 +204,30 @@ class SessionController extends Controller
 
     private function validatePayload(Request $request): array
     {
-        return $request->validate([
+        $validated = $request->validate([
             'title' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
             'format' => ['required', Rule::in(array_column(SessionFormat::cases(), 'value'))],
-            'organizers' => ['nullable', 'array'],
-            'organizers.*' => ['string', 'max:255'],
             'co_hosts' => ['nullable', 'array'],
             'co_hosts.*' => ['string', 'max:255'],
-            'target_audience' => ['nullable', 'string', 'max:500'],
-            'expected_participants' => ['nullable', 'integer', 'min:1'],
-            'is_open' => ['nullable', 'boolean'],
+            'expected_participants' => ['nullable', Rule::enum(ParticipantRange::class)],
             'session_slot_id' => ['nullable', 'integer', 'exists:session_slots,id'],
             'slot_reason' => ['nullable', 'string', 'max:1000'],
             'special_requirements' => ['nullable', 'array'],
             'special_requirements.av_equipment' => ['nullable', 'boolean'],
             'special_requirements.translation' => ['nullable', 'boolean'],
-            'special_requirements.seating_type' => ['nullable', Rule::enum(SeatingArrangement::class)],
             'special_requirements.catering' => ['nullable', 'boolean'],
         ]);
-    }
 
-    /**
-     * The seating arrangement the payload asked for, defaulting to theatre.
-     */
-    private function seatingFrom(array $validated): SeatingArrangement
-    {
-        return SeatingArrangement::fromLegacy(
-            $validated['special_requirements']['seating_type'] ?? null,
-        );
+        // The description is published to the website, the mobile app and the
+        // printed programme, which are all laid out around 150 words.
+        if (isset($validated['description']) && str_word_count($validated['description']) > 150) {
+            throw ValidationException::withMessages([
+                'description' => 'Description must not exceed 150 words.',
+            ]);
+        }
+
+        return $validated;
     }
 
     private function recalculateProgress($partner): void

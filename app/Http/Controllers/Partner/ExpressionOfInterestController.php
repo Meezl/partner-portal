@@ -56,6 +56,9 @@ class ExpressionOfInterestController extends Controller
             'email' => ['nullable', 'email', 'max:255'],
             'phone' => ['nullable', 'string', 'max:50'],
             'physical_address' => ['nullable', 'string', 'max:500'],
+            'physical_city' => ['nullable', 'string', 'max:255'],
+            'physical_country' => ['nullable', 'string', 'max:255'],
+            'physical_postal_code' => ['nullable', 'string', 'max:50'],
             'package_id' => ['nullable', 'exists:sponsorship_packages,id'],
         ]);
 
@@ -76,6 +79,9 @@ class ExpressionOfInterestController extends Controller
                 'email' => $validated['email'] ?? $partner->email,
                 'phone' => $validated['phone'] ?? $partner->phone,
                 'physical_address' => $validated['physical_address'] ?? $partner->physical_address,
+                'physical_city' => $validated['physical_city'] ?? $partner->physical_city,
+                'physical_country' => $validated['physical_country'] ?? $partner->physical_country,
+                'physical_postal_code' => $validated['physical_postal_code'] ?? $partner->physical_postal_code,
                 'slug' => $slug,
             ]);
         } else {
@@ -88,6 +94,9 @@ class ExpressionOfInterestController extends Controller
                 'email' => $validated['email'] ?? $user->email,
                 'phone' => $validated['phone'] ?? null,
                 'physical_address' => $validated['physical_address'] ?? null,
+                'physical_city' => $validated['physical_city'] ?? null,
+                'physical_country' => $validated['physical_country'] ?? null,
+                'physical_postal_code' => $validated['physical_postal_code'] ?? null,
                 'slug' => $slug,
                 'status' => PartnerStatus::Draft,
                 'onboarding_progress' => [
@@ -122,6 +131,9 @@ class ExpressionOfInterestController extends Controller
             'email' => ['required', 'email', 'max:255'],
             'phone' => ['nullable', 'string', 'max:50'],
             'physical_address' => ['nullable', 'string', 'max:500'],
+            'physical_city' => ['nullable', 'string', 'max:255'],
+            'physical_country' => ['nullable', 'string', 'max:255'],
+            'physical_postal_code' => ['nullable', 'string', 'max:50'],
             'package_id' => ['required', 'exists:sponsorship_packages,id'],
         ]);
 
@@ -139,10 +151,12 @@ class ExpressionOfInterestController extends Controller
                 'organization_name' => $validated['organization_name'],
                 'contact_person' => $validated['contact_person'],
                 'contact_title' => $validated['contact_title'] ?? null,
-                'contact_title' => $validated['contact_title'] ?? null,
                 'email' => $validated['email'],
                 'phone' => $validated['phone'] ?? null,
                 'physical_address' => $validated['physical_address'] ?? null,
+                'physical_city' => $validated['physical_city'] ?? null,
+                'physical_country' => $validated['physical_country'] ?? null,
+                'physical_postal_code' => $validated['physical_postal_code'] ?? null,
                 'slug' => $slug,
                 'status' => PartnerStatus::PendingAgreement,
                 'submitted_at' => now(),
@@ -154,10 +168,12 @@ class ExpressionOfInterestController extends Controller
                 'organization_name' => $validated['organization_name'],
                 'contact_person' => $validated['contact_person'],
                 'contact_title' => $validated['contact_title'] ?? null,
-                'contact_title' => $validated['contact_title'] ?? null,
                 'email' => $validated['email'],
                 'phone' => $validated['phone'] ?? null,
                 'physical_address' => $validated['physical_address'] ?? null,
+                'physical_city' => $validated['physical_city'] ?? null,
+                'physical_country' => $validated['physical_country'] ?? null,
+                'physical_postal_code' => $validated['physical_postal_code'] ?? null,
                 'slug' => $slug,
                 'status' => PartnerStatus::PendingAgreement,
                 'submitted_at' => now(),
@@ -197,6 +213,9 @@ class ExpressionOfInterestController extends Controller
             'email' => ['required', 'email', 'max:255'],
             'phone' => ['nullable', 'string', 'max:50'],
             'physical_address' => ['nullable', 'string', 'max:500'],
+            'physical_city' => ['nullable', 'string', 'max:255'],
+            'physical_country' => ['nullable', 'string', 'max:255'],
+            'physical_postal_code' => ['nullable', 'string', 'max:50'],
             'package_id' => ['required', 'exists:sponsorship_packages,id'],
         ]);
 
@@ -214,6 +233,9 @@ class ExpressionOfInterestController extends Controller
             'email' => $validated['email'],
             'phone' => $validated['phone'] ?? null,
             'physical_address' => $validated['physical_address'] ?? null,
+            'physical_city' => $validated['physical_city'] ?? null,
+            'physical_country' => $validated['physical_country'] ?? null,
+            'physical_postal_code' => $validated['physical_postal_code'] ?? null,
             'slug' => $slug,
         ]);
 

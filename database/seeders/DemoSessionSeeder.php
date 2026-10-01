@@ -2,8 +2,8 @@
 
 namespace Database\Seeders;
 
+use App\Enums\ParticipantRange;
 use App\Enums\PartnerStatus;
-use App\Enums\SeatingArrangement;
 use App\Enums\SessionFormat;
 use App\Enums\SessionStatus;
 use App\Enums\UserRole;
@@ -61,7 +61,10 @@ class DemoSessionSeeder extends Seeder
                     'contact_person' => $p['contact'],
                     'email' => $p['email'],
                     'phone' => '+254700000000',
-                    'physical_address' => 'Nairobi, Kenya',
+                    'physical_address' => 'Wilson Airport, Langata Road',
+                    'physical_city' => 'Nairobi',
+                    'physical_country' => 'Kenya',
+                    'physical_postal_code' => '00100',
                     'status' => PartnerStatus::Onboarding,
                 ],
             );
@@ -99,14 +102,12 @@ class DemoSessionSeeder extends Seeder
                 'title' => $s['title'],
                 'description' => $s['description'] ?? null,
                 'format' => $s['format'],
-                'organizers' => [$partner->organization_name],
                 'target_audience' => $s['audience'] ?? 'Global health leaders',
-                'expected_participants' => $s['expected'] ?? 60,
+                'expected_participants' => ParticipantRange::fromCount($s['expected'] ?? 60),
                 'is_open' => $s['is_open'] ?? true,
                 'special_requirements' => [
                     'av_equipment' => true,
                     'translation' => $s['translation'] ?? false,
-                    'seating_type' => $slot->default_format === 'round' ? SeatingArrangement::RoundTable->value : SeatingArrangement::Theatre->value,
                     'catering' => $slot->slot_category === 'breakfast' || $slot->slot_category === 'reception',
                 ],
                 'session_slot_id' => $isPending ? null : $slot->id,
@@ -180,8 +181,8 @@ class DemoSessionSeeder extends Seeder
     // Titles + partners lifted from the Master Sessions Sheet.
     private const SESSIONS = [
         // Day 1 breakfasts
-        ['slot_code' => 'Breakfast 2', 'partner' => 'serum',   'format' => SessionFormat::Roundtable->value, 'title' => 'Celebrating African Leadership in Immunization', 'expected' => 30],
-        ['slot_code' => 'Breakfast 3', 'partner' => 'msd',     'format' => SessionFormat::Roundtable->value, 'title' => 'From Crisis to Care: Cardiometabolic Disease Control in Africa', 'expected' => 30],
+        ['slot_code' => 'Breakfast 2', 'partner' => 'serum',   'format' => SessionFormat::Roundtable->value,'title' => 'Celebrating African Leadership in Immunization', 'expected' => 30],
+        ['slot_code' => 'Breakfast 3', 'partner' => 'msd',     'format' => SessionFormat::Roundtable->value,'title' => 'From Crisis to Care: Cardiometabolic Disease Control in Africa', 'expected' => 30],
 
         // Day 1 parallels — Track 1 (11:30–13:00)
         ['slot_code' => 'Parallel 1.1', 'partner' => 'gates',     'format' => SessionFormat::Panel->value,     'title' => 'Enhancing Capacity to Conduct Health Research, Development and Innovation in Africa', 'expected' => 50],
@@ -193,7 +194,7 @@ class DemoSessionSeeder extends Seeder
         ['slot_code' => 'Parallel 2.5', 'partner' => 'gates',    'format' => SessionFormat::Roundtable->value,'title' => "Accelerating RMNCH Interventions to Save Mothers and Babies in Sub-Saharan Africa", 'expected' => 60],
 
         // Day 1 reception
-        ['slot_code' => 'Reception 1', 'partner' => 'gates', 'format' => SessionFormat::SideEvent->value, 'title' => 'Official Launch of the Africa Clinical Research Network (ACRN)', 'expected' => 150, 'is_open' => false],
+        ['slot_code' => 'Reception 1', 'partner' => 'gates', 'format' => SessionFormat::Networking->value, 'title' => 'Official Launch of the Africa Clinical Research Network (ACRN)', 'expected' => 150, 'is_open' => false],
 
         // Day 2 breakfasts + parallels
         ['slot_code' => 'Breakfast 6',  'partner' => 'wellcome',    'format' => SessionFormat::Roundtable->value,'title' => "Bolstering Africa's Emergency Preparedness and Response", 'expected' => 30, 'is_open' => false],
@@ -202,7 +203,7 @@ class DemoSessionSeeder extends Seeder
         ['slot_code' => 'Parallel 4.2', 'partner' => 'jj',          'format' => SessionFormat::Roundtable->value,'title' => 'Restoring Dignity for Every Woman: Transforming Fistula Care Across Africa', 'expected' => 70],
 
         // Day 2 POP
-        ['slot_code' => 'POP 2', 'partner' => 'rockefeller', 'format' => SessionFormat::SideEvent->value, 'title' => 'Addressing Social Determinants of Health for SRHR', 'expected' => 40],
+        ['slot_code' => 'POP 2', 'partner' => 'rockefeller', 'format' => SessionFormat::Networking->value, 'title' => 'Addressing Social Determinants of Health for SRHR', 'expected' => 40],
 
         // Day 3
         ['slot_code' => 'Parallel 5.2', 'partner' => 'roche',    'format' => SessionFormat::Roundtable->value,'title' => 'Financing Cancer Care in Africa: Changing the Narrative from Cost to Return', 'expected' => 50],

@@ -169,10 +169,12 @@ it('prevents assigning sessions into rooms that do not fit capacity or supported
         'slotB' => $slotB,
     ] = schedulingFixture();
 
+    // Rooms are no longer judged on seats, so a big band in a small room is
+    // the programme team's call to make, not an error.
     $largeSession = ConferenceSession::factory()->submitted()->create([
         'partner_id' => $partner->id,
         'conference_id' => $conference->id,
-        'expected_participants' => $roomA->capacity + 25,
+        'expected_participants' => 'over 150',
     ]);
 
     $this
@@ -181,20 +183,20 @@ it('prevents assigning sessions into rooms that do not fit capacity or supported
             'room_id' => $roomA->id,
             'time_slot_id' => $slotA->id,
         ])
-        ->assertSessionHas('error', 'Expected attendance (145) exceeds theatre style capacity (120).');
+        ->assertSessionHas('success');
 
     $formatRestrictedRoom = Room::factory()->create([
         'conference_id' => $conference->id,
         'name' => 'Plenary Hall',
         'capacity' => 600,
-        'format_suitability' => ['plenary'],
+        'format_suitability' => ['keynote'],
     ]);
 
     $panelSession = ConferenceSession::factory()->submitted()->create([
         'partner_id' => $partner->id,
         'conference_id' => $conference->id,
         'format' => SessionFormat::Panel,
-        'expected_participants' => 80,
+        'expected_participants' => '50-80',
     ]);
 
     $this
@@ -325,7 +327,7 @@ it('updates schedules, exposes conflicts, and supports resource assignments', fu
             'building' => 'Annex',
             'floor' => '2',
             'capacity' => 40,
-            'format_suitability' => ['panel', 'side_event'],
+            'format_suitability' => ['panel', 'networking'],
             'equipment' => "projector: yes\nmicrophone: 2",
             'is_active' => true,
         ])
@@ -335,7 +337,7 @@ it('updates schedules, exposes conflicts, and supports resource assignments', fu
 
     expect($room->conference_id)->toBe($conference->id)
         ->and($room->equipment['projector'])->toBe('yes')
-        ->and($room->format_suitability)->toBe(['panel', 'side_event']);
+        ->and($room->format_suitability)->toBe(['panel', 'networking']);
 });
 
 it('removes an assignment and returns the session to the unscheduled pool', function () {
@@ -492,7 +494,6 @@ it('alerts and creates nothing for every kind of assignment conflict', function 
             $roomB,
             'already has a session',
         ],
-        'over capacity' => [$make(['expected_participants' => 500]), $tinyRoom, 'capacity'],
     ];
 
     foreach ($cases as $label => [$target, $room, $needle]) {

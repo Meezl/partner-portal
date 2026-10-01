@@ -20,6 +20,9 @@ class ExpressionOfInterestRequest extends FormRequest
             'email' => ['required', 'email', 'max:255'],
             'phone' => ['nullable', 'string', 'max:50'],
             'physical_address' => ['nullable', 'string', 'max:1000'],
+            'physical_city' => ['nullable', 'string', 'max:255'],
+            'physical_country' => ['nullable', 'string', 'max:255'],
+            'physical_postal_code' => ['nullable', 'string', 'max:50'],
             'sponsorship_package_id' => ['required', 'exists:sponsorship_packages,id'],
         ];
     }

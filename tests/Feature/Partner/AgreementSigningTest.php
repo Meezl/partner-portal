@@ -7,6 +7,8 @@ use App\Models\Partner;
 use App\Models\SponsorshipPackage;
 use App\Models\User;
 use App\Notifications\AgreementSignedNotification;
+use App\Notifications\NewPartnerNotification;
+use App\Notifications\PartnerWelcomeNotification;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
@@ -22,12 +24,18 @@ function partnerAwaitingSignature(): array
         'conference_id' => $conference->id,
         'status' => PartnerStatus::PendingAgreement,
         'billing_address' => 'Billing Office, Nairobi',
+        'billing_city' => 'Nairobi',
+        'billing_country' => 'Kenya',
+        'billing_postal_code' => '00100',
         'tax_details' => 'PIN-1234567',
     ]);
     $partner->packages()->sync([$package->id]);
 
     test()->actingAs($user)->put(route('partner.commitment.update'), [
         'billing_address' => 'Billing Office, Nairobi',
+        'billing_city' => 'Nairobi',
+        'billing_country' => 'Kenya',
+        'billing_postal_code' => '00100',
         'tax_details' => 'PIN-1234567',
     ]);
 
@@ -142,3 +150,69 @@ it('does not let a second signature replace the first', function (string $first,
     'upload, then digital' => ['upload', 'digital'],
     'upload twice' => ['upload', 'upload'],
 ]);
+
+it('announces a new partner to the partnerships mailbox and to partnerships users', function (string $method) {
+    $teamMember = User::factory()->partnerships()->create(['email' => 'anne@amref.org']);
+    $finance = User::factory()->finance()->create();
+    [$user, $partner] = partnerAwaitingSignature();
+
+    $method === 'digital'
+        ? $this->actingAs($user)->post(route('partner.agreement.sign'), signingPayload())
+        : $this->actingAs($user)->post(route('partner.agreement.upload'), ['signed_document' => signedPdf()]);
+
+    // The partnerships team's own user accounts.
+    Notification::assertSentTo($teamMember, NewPartnerNotification::class);
+
+    // Finance is told about the invoice, not about a new relationship to own.
+    Notification::assertNotSentTo($finance, NewPartnerNotification::class);
+
+    // Plus the team mailbox, which is nobody's user account.
+    Notification::assertSentOnDemand(
+        NewPartnerNotification::class,
+        fn (NewPartnerNotification $notification, array $channels, object $notifiable) => ($notifiable->routes['mail'] ?? null) === 'partnerships@amref.org'
+            && str_contains($notification->toMail($notifiable)->subject, $partner->organization_name),
+    );
+})->with(['digital', 'upload']);
+
+it('does not email the partnerships mailbox twice when it is also a user account', function () {
+    config(['ahaic.partnerships_emails' => ['anne@amref.org']]);
+    $teamMember = User::factory()->partnerships()->create(['email' => 'anne@amref.org']);
+    [$user] = partnerAwaitingSignature();
+
+    $this->actingAs($user)->post(route('partner.agreement.sign'), signingPayload());
+
+    // Once in total: to the user account, and not again to the same address.
+    Notification::assertSentTo($teamMember, NewPartnerNotification::class);
+    Notification::assertSentOnDemandTimes(NewPartnerNotification::class, 0);
+});
+
+it('leaves out partnerships users who have been deactivated', function () {
+    $former = User::factory()->partnerships()->create(['is_active' => false]);
+    [$user] = partnerAwaitingSignature();
+
+    $this->actingAs($user)->post(route('partner.agreement.sign'), signingPayload());
+
+    Notification::assertNotSentTo($former, NewPartnerNotification::class);
+});
+
+it('thanks the partner for registering once they have signed', function (string $method) {
+    [$user, $partner] = partnerAwaitingSignature();
+
+    $method === 'digital'
+        ? $this->actingAs($user)->post(route('partner.agreement.sign'), signingPayload())
+        : $this->actingAs($user)->post(route('partner.agreement.upload'), ['signed_document' => signedPdf()]);
+
+    Notification::assertSentTo(
+        $user,
+        PartnerWelcomeNotification::class,
+        function (PartnerWelcomeNotification $notification) use ($user, $partner) {
+            $mail = $notification->toMail($user);
+
+            return str_contains($mail->subject, 'Thank you')
+                && collect($mail->introLines)->contains(
+                    fn (string $line) => str_contains($line, 'Thank you for registering')
+                        && str_contains($line, $partner->organization_name),
+                );
+        },
+    );
+})->with(['digital', 'upload']);

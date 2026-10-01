@@ -51,7 +51,7 @@ function sessionPayload(array $overrides = []): array
         'description' => 'A panel on domestic health financing.',
         'format' => 'panel',
         'target_audience' => 'Policy makers',
-        'expected_participants' => 60,
+        'expected_participants' => '50-80',
         'is_open' => true,
     ], $overrides);
 }

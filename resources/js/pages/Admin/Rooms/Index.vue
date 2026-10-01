@@ -18,6 +18,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import AdminLayout from '@/layouts/AdminLayout.vue';
+import { sessionFormatLabel } from '@/lib/session-formats';
 import type { Room } from '@/types/partner';
 
 defineOptions({ layout: AdminLayout });
@@ -41,19 +42,10 @@ const form = useForm({
     building: '',
     floor: '',
     capacity: 0,
-    theatre_capacity: null as number | null,
-    round_capacity: null as number | null,
     format_suitability: [] as string[],
     equipment: '' as string,
     is_active: true,
 });
-
-/** A blank seating capacity means "the venue does not lay the room out that way". */
-function toCapacity(value: string | number): number | null {
-    const capacity = Number(value);
-
-    return value === '' || Number.isNaN(capacity) || capacity <= 0 ? null : capacity;
-}
 
 function openAddDialog() {
     editingRoom.value = null;
@@ -69,8 +61,6 @@ function openEditDialog(room: Room) {
     form.building = room.building || '';
     form.floor = room.floor || '';
     form.capacity = room.capacity;
-    form.theatre_capacity = room.theatre_capacity ?? room.capacity;
-    form.round_capacity = room.round_capacity ?? null;
     form.format_suitability = room.format_suitability || [];
     form.equipment = room.equipment
         ? Object.entries(room.equipment)
@@ -128,8 +118,6 @@ const columns = [
     { key: 'building', label: 'Building' },
     { key: 'floor', label: 'Floor' },
     { key: 'capacity', label: 'Capacity' },
-    { key: 'theatre_capacity', label: 'Theatre' },
-    { key: 'round_capacity', label: 'Round table' },
     { key: 'format_suitability', label: 'Formats' },
     { key: 'equipment', label: 'Equipment' },
     { key: 'is_active', label: 'Active' },
@@ -166,16 +154,6 @@ const columns = [
                 </div>
             </template>
 
-            <template #theatre_capacity="{ item }">
-                <span v-if="item.theatre_capacity ?? item.capacity">{{ item.theatre_capacity ?? item.capacity }}</span>
-                <span v-else class="text-muted-foreground">N/A</span>
-            </template>
-
-            <template #round_capacity="{ item }">
-                <span v-if="item.round_capacity">{{ item.round_capacity }}</span>
-                <span v-else class="text-muted-foreground">N/A</span>
-            </template>
-
             <template #format_suitability="{ item }">
                 <div
                     v-if="item.format_suitability?.length"
@@ -185,9 +163,9 @@ const columns = [
                         v-for="format in item.format_suitability"
                         :key="format"
                         variant="secondary"
-                        class="text-xs capitalize"
+                        class="text-xs"
                     >
-                        {{ format.replace('_', ' ') }}
+                        {{ sessionFormatLabel(format) }}
                     </Badge>
                 </div>
                 <span v-else class="text-muted-foreground">All formats</span>
@@ -289,37 +267,6 @@ const columns = [
                             placeholder="100"
                         />
                     </div>
-
-                    <div class="grid gap-4 sm:grid-cols-2">
-                        <div class="space-y-2">
-                            <Label for="theatre_capacity">Theatre style capacity</Label>
-                            <Input
-                                id="theatre_capacity"
-                                :model-value="form.theatre_capacity ?? undefined"
-                                type="number"
-                                min="1"
-                                placeholder="500"
-                                @update:model-value="form.theatre_capacity = toCapacity($event)"
-                            />
-                        </div>
-
-                        <div class="space-y-2">
-                            <Label for="round_capacity">Round table capacity</Label>
-                            <Input
-                                id="round_capacity"
-                                :model-value="form.round_capacity ?? undefined"
-                                type="number"
-                                min="1"
-                                placeholder="210"
-                                @update:model-value="form.round_capacity = toCapacity($event)"
-                            />
-                        </div>
-                    </div>
-
-                    <p class="text-muted-foreground text-xs">
-                        These two figures decide which rooms a partner can book: leave one blank
-                        when the venue does not lay this room out that way.
-                    </p>
 
                     <div class="space-y-3">
                         <Label>Supported Session Formats</Label>

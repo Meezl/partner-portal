@@ -44,10 +44,6 @@ class RoomController extends Controller
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'capacity' => ['required', 'integer', 'min:1'],
-            // Seating capacities drive room allocation: null means the venue
-            // does not lay the room out that way (the matrix's "N/A").
-            'theatre_capacity' => ['nullable', 'integer', 'min:1'],
-            'round_capacity' => ['nullable', 'integer', 'min:1'],
             'building' => ['nullable', 'string', 'max:255'],
             'floor' => ['nullable', 'string', 'max:50'],
             'format_suitability' => ['nullable', 'array'],
@@ -66,8 +62,6 @@ class RoomController extends Controller
             'conference_id' => $conference->id,
             'name' => $validated['name'],
             'capacity' => $validated['capacity'],
-            'theatre_capacity' => $validated['theatre_capacity'] ?? null,
-            'round_capacity' => $validated['round_capacity'] ?? null,
             'building' => $validated['building'] ?? null,
             'floor' => $validated['floor'] ?? null,
             'format_suitability' => $validated['format_suitability'] ?? [],
@@ -88,10 +82,6 @@ class RoomController extends Controller
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'capacity' => ['required', 'integer', 'min:1'],
-            // Seating capacities drive room allocation: null means the venue
-            // does not lay the room out that way (the matrix's "N/A").
-            'theatre_capacity' => ['nullable', 'integer', 'min:1'],
-            'round_capacity' => ['nullable', 'integer', 'min:1'],
             'building' => ['nullable', 'string', 'max:255'],
             'floor' => ['nullable', 'string', 'max:50'],
             'format_suitability' => ['nullable', 'array'],
@@ -103,8 +93,6 @@ class RoomController extends Controller
         $room->update([
             'name' => $validated['name'],
             'capacity' => $validated['capacity'],
-            'theatre_capacity' => $validated['theatre_capacity'] ?? null,
-            'round_capacity' => $validated['round_capacity'] ?? null,
             'building' => $validated['building'] ?? null,
             'floor' => $validated['floor'] ?? null,
             'format_suitability' => $validated['format_suitability'] ?? [],

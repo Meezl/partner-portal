@@ -27,33 +27,7 @@ function checklistPartnerFixture(): array
     return [$user, $partner];
 }
 
-it('stores the exhibition checklist with every option and the other note', function () {
-    [$user, $partner] = checklistPartnerFixture();
-
-    $this->actingAs($user)
-        ->put(route('partner.onboarding.update', 'organization'), [
-            'exhibition_requirements' => [
-                'additional_furniture' => true,
-                'av_equipment' => true,
-                'other' => 'A fridge for product samples',
-            ],
-            'exhibition_preferences' => 'Corner booth if possible.',
-        ])
-        ->assertRedirect(route('partner.onboarding.index'))
-        ->assertSessionHas('success');
-
-    $requirements = $partner->fresh()->exhibition_requirements;
-
-    // Unticked options are stored as false rather than left out, so the
-    // partnerships team can tell "not needed" from "not asked".
-    expect($requirements['additional_furniture'])->toBeTrue()
-        ->and($requirements['av_equipment'])->toBeTrue()
-        ->and($requirements['storage_space'])->toBeFalse()
-        ->and($requirements['additional_staff_passes'])->toBeFalse()
-        ->and($requirements['other'])->toBe('A fridge for product samples');
-});
-
-it('sends the exhibition option labels to the organization form', function () {
+it('no longer offers the exhibition checklist on the organization form', function () {
     [$user] = checklistPartnerFixture();
 
     $this->actingAs($user)
@@ -61,9 +35,35 @@ it('sends the exhibition option labels to the organization form', function () {
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
             ->component('Partner/Onboarding/OrganizationProfile')
-            ->where('exhibitionOptions.additional_power', 'Additional power/electrical points')
-            ->where('exhibitionOptions.branding_signage', 'Branding/signage requirements'),
+            ->missing('exhibitionOptions'),
         );
+});
+
+it('leaves an existing exhibition checklist alone when the profile is saved', function () {
+    [$user, $partner] = checklistPartnerFixture();
+
+    // Captured before these fields were retired from the form.
+    $partner->update([
+        'exhibition_requirements' => ['av_equipment' => true, 'other' => 'A fridge'],
+        'number_of_participants' => 12,
+    ]);
+
+    $this->actingAs($user)
+        ->put(route('partner.onboarding.update', 'organization'), [
+            'description' => 'An organization.',
+            'exhibition_preferences' => 'Corner booth if possible.',
+            // A stale client posting the retired fields must not rewrite them.
+            'exhibition_requirements' => ['storage_space' => true],
+            'number_of_participants' => 99,
+        ])
+        ->assertRedirect(route('partner.onboarding.index'))
+        ->assertSessionHas('success');
+
+    $partner = $partner->fresh();
+
+    expect($partner->exhibition_requirements)->toBe(['av_equipment' => true, 'other' => 'A fridge'])
+        ->and($partner->number_of_participants)->toBe(12)
+        ->and($partner->exhibition_preferences)->toBe('Corner booth if possible.');
 });
 
 it('stores the communications checklist and counts it towards progress', function () {
@@ -351,4 +351,35 @@ it('keeps the name of an uploaded logo for reviewers to download', function () {
         // Storage still names the stored file by hash; only the label travels.
         ->and($partner->logo_path)->toContain("partners/{$partner->id}/logos/")
         ->and($partner->logo_path)->not->toContain('grit-ngo-mark.png');
+});
+
+it('accepts a 150 word organization description but not a longer one', function () {
+    [$user, $partner] = checklistPartnerFixture();
+
+    $this->actingAs($user)
+        ->put(route('partner.onboarding.update', 'organization'), [
+            'description' => str_repeat('word ', 150),
+        ])
+        ->assertSessionHasNoErrors();
+
+    expect(str_word_count($partner->fresh()->description))->toBe(150);
+
+    $this->actingAs($user)
+        ->put(route('partner.onboarding.update', 'organization'), [
+            'description' => str_repeat('word ', 151),
+        ])
+        ->assertSessionHasErrors('description');
+});
+
+it('completes the organization section without the retired participant count', function () {
+    [$user, $partner] = checklistPartnerFixture();
+
+    $partner->update([
+        'logo_path' => 'partners/1/logos/logo.png',
+        'description' => 'An organization.',
+        'social_media' => ['website' => 'https://example.test'],
+        'number_of_participants' => null,
+    ]);
+
+    expect(app(OnboardingProgressService::class)->calculate($partner->fresh())['organization'])->toBe(100);
 });

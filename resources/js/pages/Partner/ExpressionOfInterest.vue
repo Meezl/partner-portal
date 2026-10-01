@@ -60,7 +60,10 @@ const form = useForm({
     contact_title: props.partner?.contact_title ?? '',
     email: props.partner?.email ?? '',
     phone: props.partner?.phone ?? '',
+    physical_city: props.partner?.physical_city ?? '',
+    physical_country: props.partner?.physical_country ?? '',
     physical_address: props.partner?.physical_address ?? '',
+    physical_postal_code: props.partner?.physical_postal_code ?? '',
 });
 
 watch(selectedPackageId, (val) => {
@@ -345,14 +348,50 @@ function submit() {
                         </div>
                     </div>
 
-                    <div class="space-y-2">
-                        <Label for="physical_address">Physical Address</Label>
-                        <Input
-                            id="physical_address"
-                            v-model="form.physical_address"
-                            placeholder="Street address, city, country"
-                        />
-                        <InputError :message="form.errors.physical_address" />
+                    <div class="space-y-4">
+                        <h3 class="text-sm font-medium">Physical Address</h3>
+
+                        <div class="grid gap-4 sm:grid-cols-2">
+                            <div class="space-y-2">
+                                <Label for="physical_city">City</Label>
+                                <Input
+                                    id="physical_city"
+                                    v-model="form.physical_city"
+                                    placeholder="Nairobi"
+                                />
+                                <InputError :message="form.errors.physical_city" />
+                            </div>
+
+                            <div class="space-y-2">
+                                <Label for="physical_country">Country</Label>
+                                <Input
+                                    id="physical_country"
+                                    v-model="form.physical_country"
+                                    placeholder="Kenya"
+                                />
+                                <InputError :message="form.errors.physical_country" />
+                            </div>
+
+                            <div class="space-y-2">
+                                <Label for="physical_address">Address</Label>
+                                <Input
+                                    id="physical_address"
+                                    v-model="form.physical_address"
+                                    placeholder="Street or P.O. Box"
+                                />
+                                <InputError :message="form.errors.physical_address" />
+                            </div>
+
+                            <div class="space-y-2">
+                                <Label for="physical_postal_code">Postal Code</Label>
+                                <Input
+                                    id="physical_postal_code"
+                                    v-model="form.physical_postal_code"
+                                    placeholder="00100"
+                                />
+                                <InputError :message="form.errors.physical_postal_code" />
+                            </div>
+                        </div>
                     </div>
                 </form>
             </CardContent>

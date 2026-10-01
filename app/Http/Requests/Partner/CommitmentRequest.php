@@ -15,6 +15,9 @@ class CommitmentRequest extends FormRequest
     {
         return [
             'billing_address' => ['required', 'string'],
+            'billing_city' => ['required', 'string', 'max:255'],
+            'billing_country' => ['required', 'string', 'max:255'],
+            'billing_postal_code' => ['nullable', 'string', 'max:50'],
             'tax_details' => ['nullable', 'string'],
         ];
     }

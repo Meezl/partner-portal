@@ -3,11 +3,15 @@
 namespace App\Notifications;
 
 use App\Models\SessionSchedule;
+use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
-class SessionScheduledNotification extends Notification
+class SessionScheduledNotification extends Notification implements ShouldQueue
 {
+    use Queueable;
+
     public function __construct(
         protected SessionSchedule $schedule,
     ) {}

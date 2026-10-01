@@ -6,6 +6,7 @@ use App\Enums\InvoiceStatus;
 use App\Enums\PartnerStatus;
 use App\Enums\PaymentStatus;
 use App\Http\Controllers\Controller;
+use App\Models\Invoice;
 use App\Models\Payment;
 use App\Notifications\PaymentConfirmedNotification;
 use App\Notifications\PaymentRejectedNotification;
@@ -64,6 +65,27 @@ class FinanceController extends Controller
         }
 
         return $disk->download($payment->supporting_document_path);
+    }
+
+    /**
+     * Download a partner's invoice PDF.
+     *
+     * The partner can already download their own copy; finance and the admins
+     * reviewing a partner's profile need the same document to reconcile a
+     * payment against it.
+     */
+    public function downloadInvoice(Invoice $invoice): StreamedResponse
+    {
+        $disk = Storage::disk(config('ahaic.disks.private'));
+
+        if (! $invoice->document_path || ! $disk->exists($invoice->document_path)) {
+            abort(404, 'Invoice document not found.');
+        }
+
+        return $disk->download(
+            $invoice->document_path,
+            $invoice->invoice_number.'.pdf',
+        );
     }
 
     /**

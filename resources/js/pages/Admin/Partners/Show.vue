@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Head, Link, useForm } from '@inertiajs/vue3';
+import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
 import {
     ArrowLeft,
     Building2,
@@ -151,12 +151,25 @@ const sessionColumns = [
     { key: 'status', label: 'Status' },
 ];
 
-const invoiceColumns = [
+const page = usePage();
+
+/**
+ * Only finance and the admins reconcile payments, so only they are offered the
+ * invoice document. The route enforces the same roles.
+ */
+const canDownloadInvoices = computed(() =>
+    ['super_admin', 'admin', 'finance'].includes(
+        (page.props.userRole as string | null) ?? '',
+    ),
+);
+
+const invoiceColumns = computed(() => [
     { key: 'invoice_number', label: 'Invoice #' },
     { key: 'amount', label: 'Amount' },
     { key: 'due_date', label: 'Due Date' },
     { key: 'status', label: 'Status' },
-];
+    ...(canDownloadInvoices.value ? [{ key: 'document', label: 'Invoice' }] : []),
+]);
 
 const contactColumns = [
     { key: 'name', label: 'Name' },
@@ -344,14 +357,14 @@ const changeColumns = [
                         <span class="text-muted-foreground"
                             >Physical Address</span
                         >
-                        <span>{{ partner.physical_address || '---' }}</span>
+                        <span>{{ partner.physical_address_formatted || '---' }}</span>
                     </div>
                     <Separator />
                     <div class="flex justify-between">
                         <span class="text-muted-foreground"
                             >Billing Address</span
                         >
-                        <span>{{ partner.billing_address || '---' }}</span>
+                        <span>{{ partner.billing_address_formatted || '---' }}</span>
                     </div>
                     <Separator />
                     <div class="flex justify-between">
@@ -460,6 +473,14 @@ const changeColumns = [
                 </template>
                 <template #status="{ item }">
                     <StatusBadge :status="item.status" type="invoice" />
+                </template>
+                <template #document="{ item }">
+                    <FileLink
+                        v-if="item.document_path"
+                        :name="`${item.invoice_number}.pdf`"
+                        :url="`/admin/finance/invoices/${item.id}/document`"
+                    />
+                    <span v-else class="text-muted-foreground text-sm">Not generated</span>
                 </template>
             </DataTable>
         </div>

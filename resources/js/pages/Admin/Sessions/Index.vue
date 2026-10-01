@@ -33,7 +33,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import AdminLayout from '@/layouts/AdminLayout.vue';
-import { normalizeSeating } from '@/lib/room-allocation.js';
+import { sessionFormatLabel } from '@/lib/session-formats';
 import { formatCalendarDate } from '@/lib/utils';
 import type { ConferenceSession, Partner, SessionSlot } from '@/types/partner';
 
@@ -113,12 +113,6 @@ function requirementRows(session: ReviewSession): { label: string; value: string
     return [
         { label: 'AV equipment', value: reqs.av_equipment ? 'Required' : 'Not required' },
         { label: 'Translation', value: reqs.translation ? 'Required' : 'Not required' },
-        {
-            label: 'Seating',
-            value: normalizeSeating(reqs.seating_type as string | undefined) === 'round_table'
-                ? 'Round Tables'
-                : 'Theatre style',
-        },
         { label: 'Catering', value: reqs.catering ? 'Required' : 'Not required' },
     ];
 }
@@ -257,7 +251,7 @@ const submittedCount = computed(() => props.counts.submitted ?? 0);
                         <CardDescription class="flex flex-wrap items-center gap-2">
                             <span class="font-medium">{{ session.partner?.organization_name ?? '—' }}</span>
                             <Badge variant="outline" class="capitalize">
-                                {{ String(session.format).replace(/_/g, ' ') }}
+                                {{ sessionFormatLabel(session.format) }}
                             </Badge>
                             <StatusBadge :status="session.status" type="session" />
                             <Badge
@@ -327,21 +321,7 @@ const submittedCount = computed(() => props.counts.submitted ?? 0);
 
                 <div class="grid gap-5 sm:grid-cols-2">
                     <div>
-                        <h4 class="mb-1 font-medium">Target audience</h4>
-                        <p class="text-muted-foreground">{{ session.target_audience || '—' }}</p>
-                    </div>
-                    <div>
-                        <h4 class="mb-1 font-medium">Open to all attendees</h4>
-                        <p class="text-muted-foreground">{{ session.is_open ? 'Yes' : 'No — invite only' }}</p>
-                    </div>
-                    <div>
-                        <h4 class="mb-1 font-medium">Organizers</h4>
-                        <p class="text-muted-foreground">
-                            {{ session.organizers?.length ? session.organizers.join(', ') : '—' }}
-                        </p>
-                    </div>
-                    <div>
-                        <h4 class="mb-1 font-medium">Co-hosts</h4>
+                        <h4 class="mb-1 font-medium">Co-hosts / partners</h4>
                         <p class="text-muted-foreground">
                             {{ session.co_hosts?.length ? session.co_hosts.join(', ') : '—' }}
                         </p>

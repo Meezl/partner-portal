@@ -3,12 +3,27 @@
 use App\Enums\UserRole;
 use App\Http\Controllers\PackageController;
 use App\Http\Controllers\VisaLetterController;
+use App\Models\Conference;
 use Illuminate\Support\Facades\Route;
+use Inertia\Inertia;
 use Laravel\Fortify\Features;
 
-Route::inertia('/', 'Welcome', [
-    'canRegister' => Features::enabled(Features::registration()),
-])->name('home');
+Route::get('/', function () {
+    // The landing page prints the conference's own dates and venue, so the
+    // record stays the single source rather than the copy being hardcoded.
+    $conference = Conference::where('status', 'active')->latest()->first();
+
+    return Inertia::render('Welcome', [
+        'canRegister' => Features::enabled(Features::registration()),
+        'conference' => $conference ? [
+            'name' => $conference->name,
+            'year' => $conference->year,
+            'start_date' => $conference->start_date?->timezone(config('app.timezone'))->toDateString(),
+            'end_date' => $conference->end_date?->timezone(config('app.timezone'))->toDateString(),
+            'venue' => $conference->venue,
+        ] : null,
+    ]);
+})->name('home');
 
 // Public package browsing
 Route::get('/packages', [PackageController::class, 'index'])->name('packages.index');

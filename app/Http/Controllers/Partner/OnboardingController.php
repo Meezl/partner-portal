@@ -67,10 +67,6 @@ class OnboardingController extends Controller
             'progress' => $progress,
         ];
 
-        if ($section === 'organization') {
-            $props['exhibitionOptions'] = OnboardingChecklists::exhibition();
-        }
-
         if ($section === 'communications') {
             $props['branding'] = $partner->brandingRequirement;
             $props['commsOptions'] = OnboardingChecklists::communications();
@@ -144,18 +140,14 @@ class OnboardingController extends Controller
             'description' => ['nullable', 'string'],
             'social_media' => ['nullable', 'array'],
             'social_media.website' => ['nullable', 'url'],
-            'social_media.twitter' => ['nullable', 'string'],
             'social_media.linkedin' => ['nullable', 'string'],
-            'social_media.facebook' => ['nullable', 'string'],
-            'number_of_participants' => ['nullable', 'integer', 'min:1'],
             'exhibition_preferences' => ['nullable', 'string', 'max:1000'],
-            ...OnboardingChecklists::rulesFor('exhibition_requirements', OnboardingChecklists::exhibition()),
         ]);
 
-        // Validate description word count (max 100 words)
-        if (isset($validated['description']) && str_word_count($validated['description']) > 100) {
+        // Validate description word count (max 150 words)
+        if (isset($validated['description']) && str_word_count($validated['description']) > 150) {
             throw ValidationException::withMessages([
-                'description' => 'Description must not exceed 100 words.',
+                'description' => 'Description must not exceed 150 words.',
             ]);
         }
 
@@ -166,12 +158,7 @@ class OnboardingController extends Controller
         $updateData = [
             'description' => $validated['description'] ?? $partner->description,
             'social_media' => $socialMedia,
-            'number_of_participants' => $validated['number_of_participants'] ?? $partner->number_of_participants,
             'exhibition_preferences' => $validated['exhibition_preferences'] ?? $partner->exhibition_preferences,
-            'exhibition_requirements' => OnboardingChecklists::normalise(
-                OnboardingChecklists::exhibition(),
-                $validated['exhibition_requirements'] ?? null,
-            ),
         ];
 
         if ($request->hasFile('logo')) {

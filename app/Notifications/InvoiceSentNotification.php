@@ -4,11 +4,12 @@ namespace App\Notifications;
 
 use App\Models\Invoice;
 use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailables\Attachment;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
-class InvoiceSentNotification extends Notification
+class InvoiceSentNotification extends Notification implements ShouldQueue
 {
     use Queueable;
 

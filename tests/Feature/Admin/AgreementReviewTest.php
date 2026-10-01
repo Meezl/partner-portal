@@ -151,11 +151,17 @@ it('lets the partner sign again after the agreement is sent back, without a seco
     $partner = Partner::factory()->forUser($user)->create([
         'status' => PartnerStatus::PendingAgreement,
         'billing_address' => 'Billing Office, Nairobi',
+        'billing_city' => 'Nairobi',
+        'billing_country' => 'Kenya',
+        'billing_postal_code' => '00100',
         'tax_details' => 'PIN-1234567',
     ]);
     $partner->packages()->sync([SponsorshipPackage::factory()->create(['conference_id' => $partner->conference_id])->id]);
     $this->actingAs($user)->put(route('partner.commitment.update'), [
         'billing_address' => 'Billing Office, Nairobi',
+        'billing_city' => 'Nairobi',
+        'billing_country' => 'Kenya',
+        'billing_postal_code' => '00100',
         'tax_details' => 'PIN-1234567',
     ]);
     $upload = fn () => $this->actingAs($user)->post(route('partner.agreement.upload'), [

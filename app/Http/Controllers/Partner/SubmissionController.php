@@ -38,7 +38,6 @@ class SubmissionController extends Controller
         return Inertia::render('Partner/Review', [
             'partner' => $partner,
             'progress' => $progress,
-            'exhibitionOptions' => OnboardingChecklists::exhibition(),
             'commsOptions' => OnboardingChecklists::communications(),
             'contactRoles' => OnboardingProgressService::contactRoles(),
         ]);

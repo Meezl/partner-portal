@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\ParticipantRange;
 use App\Enums\SessionFormat;
 use App\Enums\SessionStatus;
 use App\Models\Conference;
@@ -24,10 +25,9 @@ class ConferenceSessionFactory extends Factory
             'title' => fake()->sentence(4),
             'description' => fake()->paragraph(),
             'format' => SessionFormat::Panel,
-            'organizers' => [fake()->company()],
             'co_hosts' => [fake()->company()],
             'target_audience' => 'Health leaders and policy makers',
-            'expected_participants' => 80,
+            'expected_participants' => ParticipantRange::From50To80,
             'is_open' => true,
             'special_requirements' => [
                 'av_equipment' => true,

@@ -134,15 +134,13 @@ it('completes onboarding sections and exposes the review page with computed prog
             'title' => 'Scaling Community Health Financing',
             'description' => 'A practical discussion on financing primary care at scale.',
             'format' => 'panel',
+            // Retired from the form; a stale client posting it is ignored.
             'organizers' => ['Example Org'],
             'co_hosts' => ['Partner Co-host'],
-            'target_audience' => 'Policy leaders',
-            'expected_participants' => 150,
-            'is_open' => true,
+            'expected_participants' => '100-150',
             'special_requirements' => [
                 'av_equipment' => true,
                 'translation' => false,
-                'seating_type' => 'theatre',
                 'catering' => true,
             ],
         ])
@@ -151,6 +149,8 @@ it('completes onboarding sections and exposes the review page with computed prog
     $session = ConferenceSession::firstOrFail();
 
     expect($session->status)->toBe(SessionStatus::Draft)
+        ->and($session->co_hosts)->toBe(['Partner Co-host'])
+        ->and($session->organizers)->toBeNull()
         ->and($session->special_requirements['av_equipment'])->toBeTrue()
         ->and($partner->fresh()->onboarding_progress['sessions'])->toBe(100);
 

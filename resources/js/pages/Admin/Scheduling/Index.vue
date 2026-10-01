@@ -49,6 +49,7 @@ import {
     buildScheduleUpdatePath,
     getUnscheduledSessions,
 } from '@/lib/scheduling-workflow.js';
+import { sessionFormatLabel } from '@/lib/session-formats';
 import { formatCalendarDate } from '@/lib/utils';
 import type {
     ConferenceSession,
@@ -295,13 +296,7 @@ function formatTime(time: string): string {
 }
 
 function formatSessionFormat(format: string | undefined): string {
-    if (!format) {
-        return 'Session';
-    }
-
-    return format
-        .replace(/_/g, ' ')
-        .replace(/\b\w/g, (char) => char.toUpperCase());
+    return sessionFormatLabel(format);
 }
 
 function getCellWarnings(cell: AllocationCell): string[] {

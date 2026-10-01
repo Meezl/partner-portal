@@ -51,6 +51,9 @@ class CommitmentController extends Controller
     {
         $validated = $request->validate([
             'billing_address' => ['required', 'string', 'max:500'],
+            'billing_city' => ['required', 'string', 'max:255'],
+            'billing_country' => ['required', 'string', 'max:255'],
+            'billing_postal_code' => ['nullable', 'string', 'max:50'],
             'tax_details' => ['nullable', 'string', 'max:500'],
         ]);
 
@@ -59,6 +62,9 @@ class CommitmentController extends Controller
 
         $partner->update([
             'billing_address' => $validated['billing_address'],
+            'billing_city' => $validated['billing_city'],
+            'billing_country' => $validated['billing_country'],
+            'billing_postal_code' => $validated['billing_postal_code'] ?? null,
             'tax_details' => $validated['tax_details'] ?? null,
             'status' => PartnerStatus::PendingAgreement,
         ]);

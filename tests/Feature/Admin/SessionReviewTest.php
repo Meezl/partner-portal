@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\ChangeRequestStatus;
+use App\Enums\ParticipantRange;
 use App\Enums\PartnerStatus;
 use App\Enums\SessionStatus;
 use App\Enums\UserRole;
@@ -42,8 +43,7 @@ function reviewFixture(array $sessionOverrides = []): array
 it('lists submitted sessions with their full details for review', function () {
     ['session' => $session] = reviewFixture([
         'description' => 'A panel on domestic health financing.',
-        'organizers' => ['Amref'],
-        'expected_participants' => 60,
+        'expected_participants' => '50-80',
     ]);
 
     $admin = User::factory()->admin()->create();
@@ -56,7 +56,7 @@ it('lists submitted sessions with their full details for review', function () {
             ->has('sessions', 1)
             ->where('sessions.0.title', 'Financing Primary Health Care')
             ->where('sessions.0.description', 'A panel on domestic health financing.')
-            ->where('sessions.0.expected_participants', 60)
+            ->where('sessions.0.expected_participants', '50-80')
             ->where('sessions.0.partner.organization_name', $session->partner->organization_name)
             ->where('filters.status', SessionStatus::Submitted->value)
             ->has('availableSlots')
@@ -151,7 +151,7 @@ it('refuses to approve a draft or re-approve a confirmed session', function () {
 it('updates only the title and the slot', function () {
     ['session' => $session, 'slotA' => $slotA] = reviewFixture([
         'description' => 'Untouched description.',
-        'expected_participants' => 40,
+        'expected_participants' => '30-50',
     ]);
     $admin = User::factory()->admin()->create();
 
@@ -161,7 +161,7 @@ it('updates only the title and the slot', function () {
             'session_slot_id' => $slotA->id,
             // These must be ignored — the partner owns them.
             'description' => 'HACKED',
-            'expected_participants' => 9999,
+            'expected_participants' => 'over 150',
         ])
         ->assertSessionHas('success');
 
@@ -170,7 +170,7 @@ it('updates only the title and the slot', function () {
     expect($session->title)->toBe('Renamed by the programme team')
         ->and($session->session_slot_id)->toBe($slotA->id)
         ->and($session->description)->toBe('Untouched description.')
-        ->and($session->expected_participants)->toBe(40);
+        ->and($session->expected_participants)->toBe(ParticipantRange::From30To50);
 
     expect($slotA->fresh()->claimed_by_session_id)->toBe($session->id);
 });

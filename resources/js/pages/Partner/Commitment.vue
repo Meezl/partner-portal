@@ -12,6 +12,7 @@ import {
     CardContent,
     CardFooter,
 } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import PartnerLayout from '@/layouts/PartnerLayout.vue';
@@ -25,7 +26,10 @@ const props = defineProps<{
 }>();
 
 const form = useForm({
+    billing_city: props.partner.billing_city ?? '',
+    billing_country: props.partner.billing_country ?? '',
     billing_address: props.partner.billing_address ?? '',
+    billing_postal_code: props.partner.billing_postal_code ?? '',
     tax_details: props.partner.tax_details ?? '',
 });
 
@@ -140,16 +144,59 @@ function formatCurrency(amount: number, currency: string) {
                     @submit.prevent="submit"
                     class="space-y-6"
                 >
-                    <div class="space-y-2">
-                        <Label for="billing_address">Billing Address</Label>
-                        <textarea
-                            id="billing_address"
-                            v-model="form.billing_address"
-                            rows="3"
-                            class="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
-                            placeholder="Enter your full billing address"
-                        />
-                        <InputError :message="form.errors.billing_address" />
+                    <div class="space-y-4">
+                        <h3 class="text-sm font-medium">Billing Address</h3>
+
+                        <div class="grid gap-4 sm:grid-cols-2">
+                            <div class="space-y-2">
+                                <Label for="billing_city"
+                                    >City
+                                    <span class="text-destructive">*</span></Label
+                                >
+                                <Input
+                                    id="billing_city"
+                                    v-model="form.billing_city"
+                                    placeholder="Nairobi"
+                                />
+                                <InputError :message="form.errors.billing_city" />
+                            </div>
+
+                            <div class="space-y-2">
+                                <Label for="billing_country"
+                                    >Country
+                                    <span class="text-destructive">*</span></Label
+                                >
+                                <Input
+                                    id="billing_country"
+                                    v-model="form.billing_country"
+                                    placeholder="Kenya"
+                                />
+                                <InputError :message="form.errors.billing_country" />
+                            </div>
+
+                            <div class="space-y-2">
+                                <Label for="billing_address"
+                                    >Address
+                                    <span class="text-destructive">*</span></Label
+                                >
+                                <Input
+                                    id="billing_address"
+                                    v-model="form.billing_address"
+                                    placeholder="Street or P.O. Box"
+                                />
+                                <InputError :message="form.errors.billing_address" />
+                            </div>
+
+                            <div class="space-y-2">
+                                <Label for="billing_postal_code">Postal Code</Label>
+                                <Input
+                                    id="billing_postal_code"
+                                    v-model="form.billing_postal_code"
+                                    placeholder="00100"
+                                />
+                                <InputError :message="form.errors.billing_postal_code" />
+                            </div>
+                        </div>
                     </div>
 
                     <div class="space-y-2">

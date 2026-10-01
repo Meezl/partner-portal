@@ -21,8 +21,6 @@ class RoomFactory extends Factory
             'building' => 'Main Wing',
             'floor' => '1',
             'capacity' => 120,
-            'theatre_capacity' => 120,
-            'round_capacity' => 60,
             'format_suitability' => ['panel', 'workshop'],
             'equipment' => ['projector' => 'yes', 'microphone' => '4'],
             'is_active' => true,

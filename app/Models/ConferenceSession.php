@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\ChangeRequestStatus;
 use App\Enums\ChangeRequestType;
+use App\Enums\ParticipantRange;
 use App\Enums\SessionFormat;
 use App\Enums\SessionStatus;
 use App\Services\SessionTimeRequestService;
@@ -46,6 +47,7 @@ class ConferenceSession extends Model
     {
         return [
             'format' => SessionFormat::class,
+            'expected_participants' => ParticipantRange::class,
             'status' => SessionStatus::class,
             'organizers' => 'array',
             'co_hosts' => 'array',

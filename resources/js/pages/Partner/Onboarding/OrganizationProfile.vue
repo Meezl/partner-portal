@@ -1,52 +1,31 @@
 <script setup lang="ts">
 import { useForm } from '@inertiajs/vue3';
-import { Save, Globe, Twitter, Linkedin, Facebook, Image } from 'lucide-vue-next';
+import { Save, Globe, Linkedin, Image } from 'lucide-vue-next';
 import { computed } from 'vue';
 import InputError from '@/components/InputError.vue';
-import ChecklistGroup from '@/components/shared/ChecklistGroup.vue';
 import FileUpload from '@/components/shared/FileUpload.vue';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import PartnerLayout from '@/layouts/PartnerLayout.vue';
-import type { ExhibitionChecklist, Partner } from '@/types/partner';
+import type { Partner } from '@/types/partner';
 
 defineOptions({ layout: PartnerLayout });
 
 const props = defineProps<{
     partner: Partner;
-    /** Option key → label for the exhibition checklist, from the server. */
-    exhibitionOptions: Record<string, string>;
 }>();
-
-/** Start from what was saved, so unticked options are present as false. */
-function initialExhibitionRequirements(): ExhibitionChecklist {
-    const saved = props.partner.exhibition_requirements ?? {};
-    const checklist: ExhibitionChecklist = {};
-
-    Object.keys(props.exhibitionOptions).forEach((key) => {
-        checklist[key] = saved[key] === true;
-    });
-
-    checklist.other = typeof saved.other === 'string' && saved.other !== '' ? saved.other : null;
-
-    return checklist;
-}
 
 const form = useForm({
     _method: 'put',
     logo: null as File | null,
     description: props.partner.description ?? '',
     social_media: {
-        twitter: props.partner.social_media?.twitter ?? '',
         linkedin: props.partner.social_media?.linkedin ?? '',
-        facebook: props.partner.social_media?.facebook ?? '',
         website: props.partner.social_media?.website ?? '',
     },
-    number_of_participants: props.partner.number_of_participants ?? null,
     exhibition_preferences: props.partner.exhibition_preferences ?? '',
-    exhibition_requirements: initialExhibitionRequirements(),
 });
 
 const wordCount = computed(() => {
@@ -59,24 +38,10 @@ return 0;
     return text.split(/\s+/).length;
 });
 
-const wordCountExceeded = computed(() => wordCount.value > 100);
+const wordCountExceeded = computed(() => wordCount.value > 150);
 
 function handleLogoSelect(file: File | null) {
     form.logo = file;
-}
-
-function updateParticipants(value: string | number) {
-    if (value === '' || value === null || value === undefined) {
-        form.number_of_participants = null;
-
-        return;
-    }
-
-    const numericValue = Number(value);
-
-    form.number_of_participants = Number.isNaN(numericValue)
-        ? null
-        : numericValue;
 }
 
 function submit() {
@@ -118,7 +83,7 @@ function submit() {
         <Card>
             <CardHeader>
                 <CardTitle>Description</CardTitle>
-                <CardDescription>A brief description of your organization (max 100 words).</CardDescription>
+                <CardDescription>A brief description of your organization (max 150 words). This will go to the website.</CardDescription>
             </CardHeader>
             <CardContent>
                 <div class="space-y-2">
@@ -131,7 +96,7 @@ function submit() {
                     <div class="flex items-center justify-between">
                         <InputError :message="form.errors.description" />
                         <span class="text-xs" :class="wordCountExceeded ? 'text-red-500' : 'text-muted-foreground'">
-                            {{ wordCount }} / 100 words
+                            {{ wordCount }} / 150 words
                         </span>
                     </div>
                 </div>
@@ -154,24 +119,10 @@ function submit() {
                     </div>
                     <div class="space-y-2">
                         <Label class="flex items-center gap-2">
-                            <Twitter class="h-4 w-4" /> Twitter / X
-                        </Label>
-                        <Input v-model="form.social_media.twitter" placeholder="https://twitter.com/yourorg" />
-                        <InputError :message="form.errors['social_media.twitter']" />
-                    </div>
-                    <div class="space-y-2">
-                        <Label class="flex items-center gap-2">
                             <Linkedin class="h-4 w-4" /> LinkedIn
                         </Label>
                         <Input v-model="form.social_media.linkedin" placeholder="https://linkedin.com/company/yourorg" />
                         <InputError :message="form.errors['social_media.linkedin']" />
-                    </div>
-                    <div class="space-y-2">
-                        <Label class="flex items-center gap-2">
-                            <Facebook class="h-4 w-4" /> Facebook
-                        </Label>
-                        <Input v-model="form.social_media.facebook" placeholder="https://facebook.com/yourorg" />
-                        <InputError :message="form.errors['social_media.facebook']" />
                     </div>
                 </div>
             </CardContent>
@@ -182,29 +133,6 @@ function submit() {
                 <CardTitle>Additional Details</CardTitle>
             </CardHeader>
             <CardContent class="space-y-6">
-                <div class="space-y-2">
-                    <Label for="number_of_participants">Expected Number of Participants</Label>
-                    <Input id="number_of_participants" :model-value="form.number_of_participants ?? undefined" @update:model-value="updateParticipants" type="number" min="1" placeholder="e.g. 25" />
-                    <InputError :message="form.errors.number_of_participants" />
-                </div>
-
-                <div class="space-y-3">
-                    <div>
-                        <Label>Exhibition Requirements</Label>
-                        <p class="text-muted-foreground mt-1 text-sm">
-                            Please indicate any additional exhibition requirements beyond the
-                            standard exhibition package.
-                        </p>
-                    </div>
-                    <ChecklistGroup
-                        v-model="form.exhibition_requirements"
-                        :options="exhibitionOptions"
-                        id-prefix="exhibition"
-                        other-placeholder="Tell us what else you need"
-                    />
-                    <InputError :message="form.errors.exhibition_requirements" />
-                </div>
-
                 <div class="space-y-2">
                     <Label for="exhibition_preferences">Any other additional comment</Label>
                     <textarea

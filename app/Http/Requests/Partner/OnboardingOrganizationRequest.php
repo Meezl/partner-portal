@@ -18,7 +18,6 @@ class OnboardingOrganizationRequest extends FormRequest
             'description' => ['nullable', 'string', 'max:500'],
             'social_media' => ['nullable', 'array'],
             'social_media.*' => ['nullable', 'string', 'url'],
-            'number_of_participants' => ['nullable', 'integer', 'min:1'],
             'exhibition_preferences' => ['nullable', 'string'],
         ];
     }

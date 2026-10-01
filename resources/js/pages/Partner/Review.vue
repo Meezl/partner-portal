@@ -28,7 +28,6 @@ const props = defineProps<{
     partner: Partner;
     progress: OnboardingProgressType;
     /** Option key → label for the exhibition checklist, from the server. */
-    exhibitionOptions: Record<string, string>;
     /** Option key → label for the communications checklist, from the server. */
     commsOptions: Record<string, string>;
     /** Role key → label, so the summary matches the Contacts form. */
@@ -63,9 +62,6 @@ const logoName = computed(() => {
 const sessions = props.partner.sessions ?? [];
 const contacts = props.partner.contacts ?? [];
 const branding = (props.partner.branding_requirement ?? null) as BrandingRequirement | null;
-const exhibitionRequirements = computed(() =>
-    tickedChecklistLabels(props.exhibitionOptions, props.partner.exhibition_requirements ?? null),
-);
 const commsRequirements = computed(() =>
     tickedChecklistLabels(props.commsOptions, branding?.comms_checklist ?? null),
 );
@@ -201,10 +197,6 @@ const submitBlockers = computed(() => {
                         <p class="text-muted-foreground text-sm">Phone</p>
                         <p class="font-medium">{{ partner.phone ?? 'Not provided' }}</p>
                     </div>
-                    <div>
-                        <p class="text-muted-foreground text-sm">Expected Participants</p>
-                        <p class="font-medium">{{ partner.number_of_participants ?? 'Not specified' }}</p>
-                    </div>
                 </div>
 
                 <div v-if="partner.description">
@@ -222,15 +214,6 @@ const submitBlockers = computed(() => {
                             </a>
                         </li>
                     </ul>
-                </div>
-
-                <div v-if="exhibitionRequirements.length > 0">
-                    <p class="text-muted-foreground mb-2 text-sm">Exhibition Requirements</p>
-                    <div class="flex flex-wrap gap-2">
-                        <Badge v-for="(label, index) in exhibitionRequirements" :key="index" variant="outline">
-                            {{ label }}
-                        </Badge>
-                    </div>
                 </div>
 
                 <div v-if="partner.exhibition_preferences">
@@ -261,17 +244,10 @@ const submitBlockers = computed(() => {
                                     </span>
                                 </div>
                             </div>
-                            <Badge :variant="session.is_open ? 'default' : 'secondary'">
-                                {{ session.is_open ? 'Open' : 'Closed' }}
-                            </Badge>
                         </div>
                         <p v-if="session.description" class="text-muted-foreground mt-2 text-sm">{{ session.description }}</p>
-                        <div v-if="session.organizers && session.organizers.length > 0" class="mt-2">
-                            <span class="text-muted-foreground text-xs">Organizers: </span>
-                            <span class="text-xs">{{ session.organizers.join(', ') }}</span>
-                        </div>
-                        <div v-if="session.co_hosts && session.co_hosts.length > 0" class="mt-1">
-                            <span class="text-muted-foreground text-xs">Co-hosts: </span>
+                        <div v-if="session.co_hosts && session.co_hosts.length > 0" class="mt-2">
+                            <span class="text-muted-foreground text-xs">Co-hosts / partners: </span>
                             <span class="text-xs">{{ session.co_hosts.join(', ') }}</span>
                         </div>
                     </div>

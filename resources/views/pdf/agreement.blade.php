@@ -27,9 +27,12 @@
         table.signatures td { width: 50%; vertical-align: top; padding: 0 16px 0 0; }
         table.signatures .party { font-weight: 700; padding-bottom: 6px; }
         table.signatures .row { padding: 7px 16px 0 0; }
+        /* The ink sits on the text baseline, so the signature row needs room
+           above it or a tall signature runs into the Title row. */
+        table.signatures .row.sig { padding-top: 20px; }
         table.signatures .line { display: inline-block; width: 62%; border-bottom: 1px solid #221f1f; }
         table.signatures .signed { color: #255325; font-weight: 700; }
-        table.signatures img.ink { height: 38px; max-width: 62%; }
+        table.signatures img.ink { height: 32px; max-width: 58%; vertical-align: middle; margin-left: 2px; }
         .witnesses-label { font-weight: 700; margin: 16px 0 0; }
         .signature-meta { margin-top: 6px; font-size: 8.5pt; color: #255325; }
     </style>
@@ -38,7 +41,7 @@
     @php
         $conference = $partner->conference ?? $package?->conference;
         $partnerName = $partner->organization_name ?: $partner->contact_person;
-        $partnerAddress = $partner->physical_address ?: $partner->billing_address;
+        $partnerAddress = $partner->physical_address_formatted ?: $partner->billing_address_formatted;
         $dots = '……………………';
         $digital = $agreement->signed_method === 'digital' && $agreement->signed_by_name;
         // Falls back to the title captured at registration for agreements
@@ -178,8 +181,8 @@
                 </tr>
                 @foreach(['Name', 'Title', 'Signature', 'Date'] as $field)
                     <tr>
-                        <td class="row">{{ $field }}: <span class="line">&nbsp;</span></td>
-                        <td class="row">
+                        <td class="row{{ $field === 'Signature' ? ' sig' : '' }}">{{ $field }}: <span class="line">&nbsp;</span></td>
+                        <td class="row{{ $field === 'Signature' ? ' sig' : '' }}">
                             {{ $field }}:
                             @if($digital && $field === 'Name')
                                 <span class="signed">{{ $agreement->signed_by_name }}</span>
@@ -209,8 +212,8 @@
             <table class="signatures">
                 @foreach(['Name', 'Title', 'Signature', 'Date'] as $field)
                     <tr>
-                        <td class="row">{{ $field }}: <span class="line">&nbsp;</span></td>
-                        <td class="row">
+                        <td class="row{{ $field === 'Signature' ? ' sig' : '' }}">{{ $field }}: <span class="line">&nbsp;</span></td>
+                        <td class="row{{ $field === 'Signature' ? ' sig' : '' }}">
                             {{ $field }}:
                             @if($witnessed && $field === 'Name')
                                 <span class="signed">{{ $agreement->witness_name }}</span>

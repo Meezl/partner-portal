@@ -20,6 +20,13 @@ return [
         'trim',
         explode(',', (string) env('AHAIC_CHANGE_REQUEST_EMAILS', env('AHAIC_CENTRAL_EMAIL', 'info@ahaic.org'))),
     ))),
+    // Mailboxes told about a newly signed partner, alongside the actual
+    // partnerships user accounts. This is the partnerships team's own inbox,
+    // not the generic central one: they own the relationship from signing on.
+    'partnerships_emails' => array_values(array_filter(array_map(
+        'trim',
+        explode(',', (string) env('AHAIC_PARTNERSHIPS_EMAILS', 'partnerships@amref.org')),
+    ))),
     'invoice_due_days' => (int) env('AHAIC_INVOICE_DUE_DAYS', 30),
 
     /*

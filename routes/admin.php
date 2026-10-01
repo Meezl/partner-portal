@@ -70,6 +70,7 @@ Route::middleware(['auth', 'verified', 'role:super_admin,admin,finance,programme
     Route::middleware(['role:super_admin,admin,finance'])->group(function () {
         Route::get('/finance/payments', [FinanceController::class, 'index'])->name('finance.payments');
         Route::get('/finance/payments/{payment}/proof', [FinanceController::class, 'downloadProof'])->name('finance.payments.proof');
+        Route::get('/finance/invoices/{invoice}/document', [FinanceController::class, 'downloadInvoice'])->name('finance.invoices.document');
         Route::put('/finance/payments/{payment}/confirm', [FinanceController::class, 'confirm'])->name('finance.payments.confirm');
         Route::put('/finance/payments/{payment}/reject', [FinanceController::class, 'reject'])->name('finance.payments.reject');
     });

@@ -35,7 +35,7 @@ class InvoiceGeneratorService
                 'package_tier' => $package?->tier?->value,
                 'session_slots' => $package?->session_slots,
                 'exhibition_space' => $package?->exhibition_space,
-                'billing_address' => $partner->billing_address,
+                'billing_address' => $partner->billing_address_formatted,
                 'tax_details' => $partner->tax_details,
                 'event_name' => $conference?->name ?? 'AHAIC',
                 'event_dates' => $conference?->dateRange(),

@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\Enums\ChangeRequestStatus;
 use App\Enums\ChangeRequestType;
-use App\Enums\SeatingArrangement;
 use App\Models\ChangeRequest;
 use App\Models\ConferenceSession;
 use App\Models\SessionSlot;
@@ -30,8 +29,8 @@ class SessionTimeRequestService
      * by anyone else. The session's own approved/requested slots stay visible so
      * the picker can render the current selection.
      *
-     * Room capacities come along so the picker can hide slots whose room is too
-     * small for the expected headcount in the requested seating arrangement.
+     * Every assignable slot is offered: rooms are no longer filtered by setup
+     * or seat count, so the room comes along only to be named in the picker.
      */
     public function availableSlotsFor(int $conferenceId, ?ConferenceSession $session = null): Collection
     {
@@ -40,7 +39,7 @@ class SessionTimeRequestService
             $session?->requested_session_slot_id,
         ]));
 
-        return SessionSlot::with('defaultRoom:id,name,capacity,theatre_capacity,round_capacity')
+        return SessionSlot::with('defaultRoom:id,name,capacity')
             ->where('conference_id', $conferenceId)
             ->where('is_assignable', true)
             ->where(function ($q) use ($ownSlotIds) {
@@ -55,45 +54,6 @@ class SessionTimeRequestService
             ->orderBy('day_index')
             ->orderBy('sort_order')
             ->get();
-    }
-
-    /**
-     * Refuse a slot whose room cannot hold the session's expected headcount in
-     * the seating arrangement it asked for.
-     *
-     * The picker already hides those slots; this is the server-side backstop,
-     * and it also catches a headcount raised after the slot was chosen.
-     */
-    public function assertSlotFits(int $conferenceId, int $slotId, ?int $participants, SeatingArrangement $seating): void
-    {
-        $slot = SessionSlot::with('defaultRoom:id,name,capacity,theatre_capacity,round_capacity')
-            ->where('conference_id', $conferenceId)
-            ->find($slotId);
-
-        if (! $slot || $slot->seats($participants, $seating)) {
-            return;
-        }
-
-        $room = $slot->defaultRoom;
-        $capacity = $room->capacityFor($seating);
-
-        throw ValidationException::withMessages([
-            'session_slot_id' => $capacity === null
-                ? sprintf(
-                    '%s is in %s, which is not set up as %s. Choose a slot in a room that is.',
-                    $slot->slot_code,
-                    $room->name,
-                    $seating->describe(),
-                )
-                : sprintf(
-                    '%s is in %s, which seats %d %s — fewer than the %d participants you expect.',
-                    $slot->slot_code,
-                    $room->name,
-                    $capacity,
-                    $seating->describe(),
-                    $participants,
-                ),
-        ]);
     }
 
     /**

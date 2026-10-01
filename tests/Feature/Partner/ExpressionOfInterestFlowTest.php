@@ -90,3 +90,63 @@ it('lets a rejected partner reopen the eoi form for revision', function () {
         ->where('partner.id', $partner->id)
         ->has('packages', 1));
 });
+
+it('stores the physical address as its four parts and composes them for display', function () {
+    $conference = Conference::factory()->active()->create();
+    $package = SponsorshipPackage::factory()->create(['conference_id' => $conference->id]);
+    $user = User::factory()->partner()->create();
+
+    $this
+        ->actingAs($user)
+        ->post(route('partner.eoi.store'), [
+            'organization_name' => 'Amref Partner Org',
+            'contact_person' => 'Jane Partner',
+            'email' => 'partner@example.test',
+            'physical_city' => 'Nairobi',
+            'physical_country' => 'Kenya',
+            'physical_address' => 'Wilson Airport, Langata Road',
+            'physical_postal_code' => '00100',
+            'package_id' => $package->id,
+        ])
+        ->assertRedirect(route('partner.commitment.edit'));
+
+    $partner = Partner::firstOrFail();
+
+    expect($partner->physical_address)->toBe('Wilson Airport, Langata Road')
+        ->and($partner->physical_city)->toBe('Nairobi')
+        ->and($partner->physical_country)->toBe('Kenya')
+        ->and($partner->physical_postal_code)->toBe('00100')
+        ->and($partner->physical_address_formatted)
+        ->toBe('Wilson Airport, Langata Road, 00100 Nairobi, Kenya');
+});
+
+it('leaves out the address parts a partner skipped', function () {
+    $conference = Conference::factory()->active()->create();
+    $package = SponsorshipPackage::factory()->create(['conference_id' => $conference->id]);
+    $user = User::factory()->partner()->create();
+
+    $this
+        ->actingAs($user)
+        ->post(route('partner.eoi.store'), [
+            'organization_name' => 'Amref Partner Org',
+            'contact_person' => 'Jane Partner',
+            'email' => 'partner@example.test',
+            'physical_city' => 'Kigali',
+            'physical_country' => 'Rwanda',
+            'package_id' => $package->id,
+        ])
+        ->assertRedirect(route('partner.commitment.edit'));
+
+    expect(Partner::firstOrFail()->physical_address_formatted)->toBe('Kigali, Rwanda');
+});
+
+it('does not compose an address for a partner who gave none', function () {
+    $partner = Partner::factory()->create([
+        'physical_address' => null,
+        'physical_city' => null,
+        'physical_country' => null,
+        'physical_postal_code' => null,
+    ]);
+
+    expect($partner->physical_address_formatted)->toBeNull();
+});

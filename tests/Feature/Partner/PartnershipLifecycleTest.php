@@ -88,6 +88,9 @@ it('confirms commitment details and generates an agreement without invoicing yet
         ->actingAs($user)
         ->put(route('partner.commitment.update'), [
             'billing_address' => 'Billing Office, Nairobi',
+            'billing_city' => 'Nairobi',
+            'billing_country' => 'Kenya',
+            'billing_postal_code' => '00100',
             'tax_details' => 'PIN-1234567',
         ]);
 
@@ -115,11 +118,17 @@ it('digitally signs the agreement, generates an invoice, and advances to pending
     ['user' => $user, 'partner' => $partner] = partnerFixture([
         'status' => PartnerStatus::PendingAgreement,
         'billing_address' => 'Billing Office, Nairobi',
+        'billing_city' => 'Nairobi',
+        'billing_country' => 'Kenya',
+        'billing_postal_code' => '00100',
         'tax_details' => 'PIN-1234567',
     ]);
 
     $this->actingAs($user)->put(route('partner.commitment.update'), [
         'billing_address' => 'Billing Office, Nairobi',
+        'billing_city' => 'Nairobi',
+        'billing_country' => 'Kenya',
+        'billing_postal_code' => '00100',
         'tax_details' => 'PIN-1234567',
     ]);
 
@@ -156,11 +165,17 @@ it('accepts an uploaded signed agreement and exposes the invoice on the payment 
     ['user' => $user, 'partner' => $partner] = partnerFixture([
         'status' => PartnerStatus::PendingAgreement,
         'billing_address' => 'Billing Office, Nairobi',
+        'billing_city' => 'Nairobi',
+        'billing_country' => 'Kenya',
+        'billing_postal_code' => '00100',
         'tax_details' => 'PIN-1234567',
     ]);
 
     $this->actingAs($user)->put(route('partner.commitment.update'), [
         'billing_address' => 'Billing Office, Nairobi',
+        'billing_city' => 'Nairobi',
+        'billing_country' => 'Kenya',
+        'billing_postal_code' => '00100',
         'tax_details' => 'PIN-1234567',
     ]);
 
@@ -319,4 +334,47 @@ it('stores a database notification for finance when payment proof is submitted',
     expect($data['payment_id'])->toBe(Payment::firstOrFail()->id)
         ->and($data['message'])->toContain($partner->organization_name)
         ->and($data['message'])->not->toContain('A Partner');
+});
+
+it('requires the billing city and country alongside the address', function () {
+    ['user' => $user] = partnerFixture([
+        'status' => PartnerStatus::PendingAgreement,
+    ]);
+
+    $this
+        ->actingAs($user)
+        ->put(route('partner.commitment.update'), [
+            'billing_address' => 'Billing Office',
+            'tax_details' => 'PIN-1234567',
+        ])
+        ->assertSessionHasErrors(['billing_city', 'billing_country']);
+});
+
+it('stores the billing address as its four parts and composes them for display', function () {
+    Storage::fake('local');
+    Notification::fake();
+
+    ['user' => $user, 'partner' => $partner] = partnerFixture([
+        'status' => PartnerStatus::PendingAgreement,
+    ]);
+
+    $this
+        ->actingAs($user)
+        ->put(route('partner.commitment.update'), [
+            'billing_city' => 'Nairobi',
+            'billing_country' => 'Kenya',
+            'billing_address' => 'Billing Office, Langata Road',
+            'billing_postal_code' => '00100',
+            'tax_details' => 'PIN-1234567',
+        ])
+        ->assertRedirect(route('partner.agreement.show'));
+
+    $partner = $partner->fresh();
+
+    expect($partner->billing_address)->toBe('Billing Office, Langata Road')
+        ->and($partner->billing_city)->toBe('Nairobi')
+        ->and($partner->billing_country)->toBe('Kenya')
+        ->and($partner->billing_postal_code)->toBe('00100')
+        ->and($partner->billing_address_formatted)
+        ->toBe('Billing Office, Langata Road, 00100 Nairobi, Kenya');
 });
