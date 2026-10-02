@@ -1,7 +1,7 @@
 <?php
 
 return [
-    'central_email' => env('AHAIC_CENTRAL_EMAIL', 'info@ahaic.org'),
+    'central_email' => env('AHAIC_CENTRAL_EMAIL', 'ahaic@amref.org'),
     'finance_email' => env('AHAIC_FINANCE_EMAIL', 'finance@ahaic.org'),
     'billing_contact_email' => env('AHAIC_BILLING_CONTACT_EMAIL', 'ahaic@amref.org'),
     'billing_contact_name' => env('AHAIC_BILLING_CONTACT_NAME', 'AHAIC Secretariat'),
@@ -10,7 +10,7 @@ return [
     'billing_project_cost_centre' => env('AHAIC_PROJECT_COST_CENTRE', 'AHAIC'),
     'team_emails' => array_values(array_filter(array_map(
         'trim',
-        explode(',', (string) env('AHAIC_TEAM_EMAILS', 'info@ahaic.org,finance@ahaic.org')),
+        explode(',', (string) env('AHAIC_TEAM_EMAILS', 'ahaic@amref.org,finance@ahaic.org')),
     ))),
     // Mailboxes copied on change-request decisions, alongside the actual
     // admin/partnerships user accounts. Defaults to the central inbox only —

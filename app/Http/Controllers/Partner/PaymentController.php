@@ -10,6 +10,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Invoice;
 use App\Models\Payment;
 use App\Models\User;
+use App\Notifications\PaymentDocumentReceivedNotification;
 use App\Notifications\PaymentSubmittedNotification;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -93,6 +94,10 @@ class PaymentController extends Controller
                 new PaymentSubmittedNotification($payment)
             );
         }
+
+        // The partner gets their own receipt, so an upload is never a silent
+        // submission they have to come back and check on.
+        $request->user()->notify(new PaymentDocumentReceivedNotification($payment->load('invoice')));
 
         return redirect()->route('partner.dashboard')
             ->with('success', $paymentType === PaymentType::PurchaseOrder

@@ -195,7 +195,7 @@ it('leaves out partnerships users who have been deactivated', function () {
     Notification::assertNotSentTo($former, NewPartnerNotification::class);
 });
 
-it('thanks the partner for registering once they have signed', function (string $method) {
+it('welcomes the partner and points them at onboarding once they have signed', function (string $method) {
     [$user, $partner] = partnerAwaitingSignature();
 
     $method === 'digital'
@@ -205,14 +205,45 @@ it('thanks the partner for registering once they have signed', function (string 
     Notification::assertSentTo(
         $user,
         PartnerWelcomeNotification::class,
-        function (PartnerWelcomeNotification $notification) use ($user, $partner) {
-            $mail = $notification->toMail($user);
-
-            return str_contains($mail->subject, 'Thank you')
-                && collect($mail->introLines)->contains(
-                    fn (string $line) => str_contains($line, 'Thank you for registering')
-                        && str_contains($line, $partner->organization_name),
-                );
-        },
+        fn (PartnerWelcomeNotification $notification) => str_contains(
+            $notification->toMail($user)->subject,
+            'Partner Onboarding & Next Steps',
+        ),
     );
 })->with(['digital', 'upload']);
+
+it('renders the welcome email with the wording the partnerships team supplied', function () {
+    [$user, $partner] = partnerAwaitingSignature();
+
+    $this->actingAs($user)->post(route('partner.agreement.sign'), signingPayload());
+
+    // Fixed dates so the assertion below reads the conference record rather
+    // than whatever the factory's "six months out" lands on today.
+    $partner->conference->update(['start_date' => '2027-02-28', 'end_date' => '2027-03-03']);
+
+    $notification = new PartnerWelcomeNotification(
+        $partner->fresh()->agreements()->latest()->first(),
+    );
+    $mail = $notification->toMail($user);
+    $body = (string) $mail->render();
+
+    expect($mail->subject)->toContain('Partner Onboarding & Next Steps');
+
+    // The headings, both checklists and the two links all have to survive the
+    // markdown view, which is why the copy does not live in MailMessage lines.
+    expect($body)
+        ->toContain('Dear '.$partner->organization_name.' Team')
+        ->toContain('Greetings from the AHAIC Team')
+        ->toContain('From Dialogue to Delivery')
+        ->toContain('Partner Portal Access')
+        ->toContain('Access the AHAIC Partner Portal')
+        ->toContain('What Happens Next?')
+        ->toContain('Branding and logo requirements')
+        ->toContain('Speaker profiles and biographies')
+        ->toContain('https://ahaic.org')
+        ->toContain('/partner/onboarding')
+        ->toContain('Amref Health Africa');
+
+    // The conference record drives the dates, not a second copy of them.
+    expect($body)->toContain('28 February to 3 March 2027');
+});

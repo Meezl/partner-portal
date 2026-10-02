@@ -9,11 +9,14 @@ const props = withDefaults(
         maxSize?: number;
         /** Accept a whole batch at once instead of a single file. */
         multiple?: boolean;
+        /** Replaces the default one-line hint under the drop zone. */
+        instructions?: string[] | null;
     }>(),
     {
         accept: '*',
         maxSize: 10,
         multiple: false,
+        instructions: null,
     },
 );
 
@@ -184,7 +187,10 @@ function openPicker() {
             <p class="text-sm font-medium">
                 {{ multiple ? 'Drop files here or click to browse' : 'Drop file here or click to browse' }}
             </p>
-            <p class="mt-1 text-xs text-muted-foreground">
+            <ul v-if="instructions?.length" class="mt-1 text-xs text-muted-foreground">
+                <li v-for="line in instructions" :key="line">{{ line }}</li>
+            </ul>
+            <p v-else class="mt-1 text-xs text-muted-foreground">
                 <template v-if="multiple">Select several at once &middot; </template>Max {{ maxSize }} MB each
                 <template v-if="accept !== '*'"> &middot; {{ accept }}</template>
             </p>

@@ -11,9 +11,11 @@ use App\Models\Partner;
 use App\Models\Payment;
 use App\Models\SponsorshipPackage;
 use App\Models\User;
+use App\Notifications\PaymentDocumentReceivedNotification;
 use App\Services\AgreementGeneratorService;
 use App\Services\PartnershipAgreementTerms;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Testing\AssertableInertia as Assert;
 
@@ -253,3 +255,47 @@ it('captures the signatory title at registration', function () {
 
     expect(Partner::firstOrFail()->contact_title)->toBe('Chief Executive');
 });
+
+it('sends the partner a receipt for whichever document they submitted', function (string $type, string $subject, string $line) {
+    Storage::fake('local');
+    Notification::fake();
+
+    [$user, , $invoice] = partnerWithInvoice();
+
+    $this->actingAs($user)
+        ->post(route('partner.payment.store'), [
+            'invoice_id' => $invoice->id,
+            'payment_type' => $type,
+            'amount' => 25000,
+            'payment_method' => 'bank_transfer',
+            'transaction_reference' => 'REF-1',
+            'supporting_document' => UploadedFile::fake()->create('doc.pdf', 120, 'application/pdf'),
+        ])
+        ->assertRedirect(route('partner.dashboard'));
+
+    Notification::assertSentTo(
+        $user,
+        PaymentDocumentReceivedNotification::class,
+        function (PaymentDocumentReceivedNotification $notification) use ($user, $subject, $line, $invoice) {
+            $mail = $notification->toMail($user);
+
+            return $mail->subject === $subject
+                && collect($mail->introLines)->contains($line)
+                && collect($mail->introLines)->contains('Invoice: '.$invoice->invoice_number)
+                && collect($mail->introLines)->contains(
+                    'Your payment documentation will be reviewed by the AHAIC Finance Team. You will then receive confirmation once your payment is finalized.',
+                );
+        },
+    );
+})->with([
+    'proof of payment' => [
+        'proof_of_payment',
+        'We have received your proof of payment',
+        'Thank you — your proof of payment has been received.',
+    ],
+    'purchase order' => [
+        'purchase_order',
+        'We have received your purchase order',
+        'Thank you — your Local Purchase Order (LPO/PO) has been received.',
+    ],
+]);

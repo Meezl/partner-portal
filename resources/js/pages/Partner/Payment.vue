@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useForm } from '@inertiajs/vue3';
-import { CreditCard, Building2, Landmark, Send } from 'lucide-vue-next';
+import { Building2, CheckCircle2, CreditCard, Landmark, Send } from 'lucide-vue-next';
 import { computed } from 'vue';
 import InputError from '@/components/InputError.vue';
 import FileUpload from '@/components/shared/FileUpload.vue';
@@ -18,6 +18,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import PartnerLayout from '@/layouts/PartnerLayout.vue';
+import { formatCalendarDate } from '@/lib/utils';
 import type { Partner, Invoice } from '@/types/partner';
 
 defineOptions({ layout: PartnerLayout });
@@ -38,38 +39,62 @@ const props = defineProps<{
 }>();
 
 const pendingInvoices = computed(() =>
-    props.invoices.filter(
-        (i) => i.status !== 'paid' && i.status !== 'cancelled',
-    ),
-);
-
-const selectedInvoice = computed(
-    () =>
-        pendingInvoices.value.find((i) => i.id === Number(form.invoice_id)) ??
-        null,
+    props.invoices.filter((i) => i.status !== 'paid' && i.status !== 'cancelled'),
 );
 
 const form = useForm({
     invoice_id: pendingInvoices.value[0]?.id?.toString() ?? '',
-    payment_type: props.paymentTypes[0]?.value ?? 'proof_of_payment',
+    // Nothing is preselected: the partner picks a route before step 3 appears.
+    payment_type: '',
     amount: pendingInvoices.value[0]?.amount?.toString() ?? '',
     payment_method: props.paymentMethod,
     transaction_reference: '',
     supporting_document: null as File | null,
 });
 
+const selectedInvoice = computed(
+    () => pendingInvoices.value.find((i) => i.id === Number(form.invoice_id)) ?? null,
+);
+
+const payingNow = computed(() => form.payment_type === 'proof_of_payment');
 const payingLater = computed(() => form.payment_type === 'purchase_order');
+const hasChosen = computed(() => payingNow.value || payingLater.value);
 
 /** The wording for whichever route the partner picked. */
 const selectedType = computed(
-    () =>
-        props.paymentTypes.find((type) => type.value === form.payment_type) ??
-        props.paymentTypes[0],
+    () => props.paymentTypes.find((type) => type.value === form.payment_type) ?? null,
 );
 
-function onInvoiceChange(
-    val: string | number | bigint | Record<string, any> | null,
-) {
+/**
+ * Only shown once "Pay now" is chosen — a partner settling later has no
+ * transfer to make, so the bank details are noise on their path.
+ */
+const bankDetails = computed(() => {
+    if (!payingNow.value) {
+        return null;
+    }
+
+    const details = selectedInvoice.value?.bank_details ?? null;
+
+    if (!details) {
+        return null;
+    }
+
+    // A detail the conference has not configured — branch code, say — would
+    // otherwise render as a labelled blank.
+    const filled = Object.entries(details).filter(
+        ([, value]) => String(value ?? '').trim() !== '',
+    );
+
+    return filled.length ? Object.fromEntries(filled) : null;
+});
+
+const optionBlurbs: Record<string, string> = {
+    proof_of_payment: 'Transfer the funds by bank transfer and upload your payment confirmation.',
+    purchase_order: 'Submit your LPO/PO now and complete payment before the conference.',
+};
+
+function onInvoiceChange(val: string | number | bigint | Record<string, any> | null) {
     if (typeof val !== 'string') {
         return;
     }
@@ -82,22 +107,22 @@ function onInvoiceChange(
     }
 }
 
+function choose(type: string) {
+    form.payment_type = type;
+    // The two routes attach different documents, so a file picked for one is
+    // never carried over to the other.
+    form.supporting_document = null;
+    form.transaction_reference = '';
+    form.clearErrors();
+}
+
 function submit() {
-    form.post('/partner/payment', {
-        forceFormData: true,
-    });
+    form.post('/partner/payment', { forceFormData: true });
 }
 
 function formatCurrency(amount: number, currency: string) {
-    return new Intl.NumberFormat('en-US', {
-        style: 'currency',
-        currency,
-    }).format(amount);
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(amount);
 }
-
-const bankDetails = computed(() =>
-    payingLater.value ? null : (selectedInvoice.value?.bank_details ?? null),
-);
 
 function handleSupportingDocument(file: File | null) {
     form.supporting_document = file;
@@ -107,12 +132,10 @@ function handleSupportingDocument(file: File | null) {
 <template>
     <div class="space-y-8">
         <div>
-            <h1 class="font-heading text-3xl font-bold tracking-tight">
-                Make Payment
-            </h1>
+            <h1 class="font-heading text-3xl font-bold tracking-tight">Settle Your Invoice</h1>
             <p class="mt-1 text-muted-foreground">
-                Pay now and send your proof of payment, or commit to pay later with a purchase
-                order. Either way the finance team reviews it.
+                Pay now and upload your proof of payment, or pay later by submitting your
+                purchase order (PO).
             </p>
         </div>
 
@@ -127,231 +150,224 @@ function handleSupportingDocument(file: File | null) {
             </Card>
         </div>
 
-        <div v-else class="grid gap-6 lg:grid-cols-3">
-            <div class="space-y-6 lg:col-span-2">
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Pending Invoices Summary</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div class="space-y-3">
-                            <div
-                                v-for="inv in pendingInvoices"
-                                :key="inv.id"
-                                class="flex items-center justify-between rounded-lg border p-3"
-                            >
-                                <div>
-                                    <p class="text-sm font-medium">
-                                        {{ inv.invoice_number }}
-                                    </p>
-                                    <p class="text-xs text-muted-foreground">
-                                        Due
-                                        {{
-                                            new Date(
-                                                inv.due_date,
-                                            ).toLocaleDateString()
-                                        }}
-                                    </p>
-                                </div>
-                                <div class="flex items-center gap-3">
-                                    <StatusBadge :status="inv.status" />
-                                    <span class="font-semibold">{{
-                                        formatCurrency(inv.amount, inv.currency)
-                                    }}</span>
-                                </div>
-                            </div>
+        <div v-else class="space-y-6">
+            <!-- 1. Invoice details -->
+            <Card>
+                <CardHeader>
+                    <CardTitle class="flex items-center gap-2">
+                        <span class="font-mono text-sm text-muted-foreground">1</span>
+                        Invoice Details
+                    </CardTitle>
+                    <CardDescription>Your outstanding invoice.</CardDescription>
+                </CardHeader>
+                <CardContent class="space-y-5">
+                    <!-- Only worth a picker when there is more than one to settle. -->
+                    <div v-if="pendingInvoices.length > 1" class="space-y-2">
+                        <Label for="invoice_id">Select invoice</Label>
+                        <Select v-model="form.invoice_id" @update:model-value="onInvoiceChange">
+                            <SelectTrigger>
+                                <SelectValue placeholder="Select an invoice" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem
+                                    v-for="inv in pendingInvoices"
+                                    :key="inv.id"
+                                    :value="inv.id.toString()"
+                                >
+                                    {{ inv.invoice_number }} -
+                                    {{ formatCurrency(inv.amount, inv.currency) }}
+                                </SelectItem>
+                            </SelectContent>
+                        </Select>
+                        <InputError :message="form.errors.invoice_id" />
+                    </div>
+
+                    <div v-if="selectedInvoice" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                        <div>
+                            <p class="text-xs text-muted-foreground">Invoice</p>
+                            <p class="font-medium">{{ selectedInvoice.invoice_number }}</p>
                         </div>
-                    </CardContent>
-                </Card>
-
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Payment Details</CardTitle>
-                        <CardDescription
-                            >Select an invoice, complete the bank transfer, and upload the payment proof.</CardDescription
-                        >
-                    </CardHeader>
-                    <CardContent>
-                        <form @submit.prevent="submit" class="space-y-6">
-                            <div class="space-y-2">
-                                <Label for="invoice_id">Select Invoice</Label>
-                                <Select
-                                    v-model="form.invoice_id"
-                                    @update:model-value="onInvoiceChange"
-                                >
-                                    <SelectTrigger>
-                                        <SelectValue
-                                            placeholder="Select an invoice"
-                                        />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem
-                                            v-for="inv in pendingInvoices"
-                                            :key="inv.id"
-                                            :value="inv.id.toString()"
-                                        >
-                                            {{ inv.invoice_number }} -
-                                            {{
-                                                formatCurrency(
-                                                    inv.amount,
-                                                    inv.currency,
-                                                )
-                                            }}
-                                        </SelectItem>
-                                    </SelectContent>
-                                </Select>
-                                <InputError :message="form.errors.invoice_id" />
-                            </div>
-
-                            <div class="space-y-2">
-                                <Label for="amount">Amount</Label>
-                                <Input
-                                    id="amount"
-                                    v-model="form.amount"
-                                    type="number"
-                                    step="0.01"
-                                    readonly
-                                />
-                                <InputError :message="form.errors.amount" />
-                            </div>
-
-                            <div class="space-y-2">
-                                <Label>How are you settling this invoice?</Label>
-                                <div class="grid gap-3 sm:grid-cols-2">
-                                    <label
-                                        v-for="type in paymentTypes"
-                                        :key="type.value"
-                                        class="flex cursor-pointer flex-col gap-1 rounded-lg border p-3 transition"
-                                        :class="
-                                            form.payment_type === type.value
-                                                ? 'border-primary bg-primary/5'
-                                                : 'border-input hover:border-primary/50'
-                                        "
-                                    >
-                                        <input
-                                            type="radio"
-                                            class="sr-only"
-                                            :value="type.value"
-                                            :checked="form.payment_type === type.value"
-                                            @change="form.payment_type = type.value"
-                                        />
-                                        <span class="text-sm font-medium">{{ type.label }}</span>
-                                        <span class="text-xs text-muted-foreground">
-                                            {{
-                                                type.value === 'purchase_order'
-                                                    ? 'Send your LPO or PO now and pay before the conference.'
-                                                    : 'You have already transferred the funds.'
-                                            }}
-                                        </span>
-                                    </label>
-                                </div>
-                                <InputError :message="form.errors.payment_type" />
-                            </div>
-
-                            <div class="space-y-2">
-                                <Label>Payment Method</Label>
-                                <div
-                                    class="flex items-center gap-3 rounded-lg border bg-muted/30 px-4 py-3"
-                                >
-                                    <Landmark class="h-5 w-5 text-primary" />
-                                    <div>
-                                        <p class="text-sm font-medium">
-                                            Bank Transfer
-                                        </p>
-                                        <p class="text-xs text-muted-foreground">
-                                            Payment is accepted via bank transfer only.
-                                        </p>
-                                    </div>
-                                </div>
-                                <InputError
-                                    :message="form.errors.payment_method"
-                                />
-                            </div>
-
-                            <div class="space-y-2">
-                                <Label for="transaction_reference">{{ selectedType.reference }}</Label>
-                                <Input
-                                    id="transaction_reference"
-                                    v-model="form.transaction_reference"
-                                    :placeholder="
-                                        payingLater
-                                            ? 'Enter your LPO or PO number'
-                                            : 'Enter transaction or receipt reference'
-                                    "
-                                />
-                                <InputError
-                                    :message="form.errors.transaction_reference"
-                                />
-                            </div>
-
-                            <div class="space-y-2">
-                                <Label>{{ selectedType.document }}</Label>
-                                <FileUpload
-                                    accept=".pdf,.jpg,.jpeg,.png"
-                                    :max-size="10"
-                                    @change="handleSupportingDocument"
-                                />
-                                <p class="text-xs text-muted-foreground">
-                                    {{
-                                        payingLater
-                                            ? 'Upload your signed local purchase order or purchase order.'
-                                            : 'Upload a bank slip, transfer confirmation, or any supporting bank payment document.'
-                                    }}
-                                </p>
-                                <InputError
-                                    :message="form.errors.supporting_document"
-                                />
-                            </div>
-                        </form>
-                    </CardContent>
-                    <CardFooter class="flex justify-end">
-                        <Button @click="submit" :disabled="form.processing">
-                            <Send class="mr-2 h-4 w-4" />
-                            {{ payingLater ? 'Submit Purchase Order' : 'Submit Payment Proof' }}
-                        </Button>
-                    </CardFooter>
-                </Card>
-            </div>
-
-            <div>
-                <Card v-if="bankDetails" class="sticky top-4">
-                    <CardHeader>
-                        <CardTitle class="flex items-center gap-2">
-                            <Building2 class="h-5 w-5" />
-                            Bank Details
-                        </CardTitle>
-                        <CardDescription
-                            >Use these details for your bank transfer, then upload the payment proof here.</CardDescription
-                        >
-                    </CardHeader>
-                    <CardContent class="space-y-3">
-                        <div
-                            v-for="(value, key) in bankDetails"
-                            :key="key"
-                            class="space-y-1"
-                        >
-                            <p class="text-xs text-muted-foreground capitalize">
-                                {{ String(key).replace(/_/g, ' ') }}
+                        <div>
+                            <p class="text-xs text-muted-foreground">Amount due</p>
+                            <p class="font-heading text-lg">
+                                {{ formatCurrency(selectedInvoice.amount, selectedInvoice.currency) }}
                             </p>
-                            <p class="text-sm font-medium">{{ value }}</p>
                         </div>
-                    </CardContent>
-                </Card>
+                        <div>
+                            <p class="text-xs text-muted-foreground">Due date</p>
+                            <p class="font-medium">
+                                {{ formatCalendarDate(selectedInvoice.due_date, { day: 'numeric', month: 'long', year: 'numeric' }) }}
+                            </p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-muted-foreground">Status</p>
+                            <StatusBadge :status="selectedInvoice.status" type="invoice" />
+                        </div>
+                    </div>
+                    <InputError :message="form.errors.amount" />
+                </CardContent>
+            </Card>
 
-                <Card v-else class="sticky top-4">
-                    <CardHeader>
-                        <CardTitle class="flex items-center gap-2">
-                            <Building2 class="h-5 w-5" />
-                            Bank Details
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <p class="text-sm text-muted-foreground">
-                            Bank details will appear once you select an invoice.
+            <!-- 2. Choose a payment option -->
+            <Card>
+                <CardHeader>
+                    <CardTitle class="flex items-center gap-2">
+                        <span class="font-mono text-sm text-muted-foreground">2</span>
+                        Choose Your Payment Option
+                    </CardTitle>
+                    <CardDescription>How would you like to proceed?</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <div class="grid gap-4 sm:grid-cols-2">
+                        <label
+                            v-for="(type, index) in paymentTypes"
+                            :key="type.value"
+                            class="flex cursor-pointer flex-col gap-1 rounded-lg border p-4 transition"
+                            :class="
+                                form.payment_type === type.value
+                                    ? 'border-primary bg-primary/5'
+                                    : 'border-input hover:border-primary/50'
+                            "
+                        >
+                            <input
+                                type="radio"
+                                class="sr-only"
+                                :value="type.value"
+                                :checked="form.payment_type === type.value"
+                                @change="choose(type.value)"
+                            />
+                            <span class="text-xs text-muted-foreground">Option {{ index + 1 }}</span>
+                            <span class="font-medium">
+                                {{ type.value === 'purchase_order' ? 'Pay Later' : 'Pay Now' }}
+                            </span>
+                            <span class="text-sm text-muted-foreground">
+                                {{ optionBlurbs[type.value] }}
+                            </span>
+                        </label>
+                    </div>
+                    <InputError :message="form.errors.payment_type" class="mt-2" />
+                </CardContent>
+            </Card>
+
+            <!-- 3. Complete the required action -->
+            <Card v-if="!hasChosen" class="border-dashed">
+                <CardHeader>
+                    <CardTitle class="flex items-center gap-2 text-muted-foreground">
+                        <span class="font-mono text-sm">3</span>
+                        Complete the Required Action
+                    </CardTitle>
+                    <CardDescription>
+                        Choose an option above and the step you need will appear here.
+                    </CardDescription>
+                </CardHeader>
+            </Card>
+
+            <Card v-else>
+                <CardHeader>
+                    <CardTitle class="flex items-center gap-2">
+                        <span class="font-mono text-sm text-muted-foreground">3</span>
+                        {{ payingLater ? 'Submit LPO/PO' : 'Bank Transfer' }}
+                    </CardTitle>
+                    <CardDescription>
+                        {{
+                            payingLater
+                                ? 'Please upload your Local Purchase Order (LPO) or Purchase Order (PO).'
+                                : 'Payment is accepted via bank transfer only.'
+                        }}
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <form @submit.prevent="submit" class="space-y-6">
+                        <!-- Bank details, for the transfer route only -->
+                        <div v-if="payingNow" class="rounded-lg border bg-muted/30 p-4">
+                            <p class="flex items-center gap-2 text-sm font-medium">
+                                <Building2 class="h-4 w-4" />
+                                Bank Details
+                            </p>
+                            <div v-if="bankDetails" class="mt-3 grid gap-3 sm:grid-cols-2">
+                                <div v-for="(value, key) in bankDetails" :key="key">
+                                    <p class="text-xs text-muted-foreground capitalize">
+                                        {{ String(key).replace(/_/g, ' ') }}
+                                    </p>
+                                    <p class="text-sm font-medium">{{ value }}</p>
+                                </div>
+                            </div>
+                            <p v-else class="mt-2 text-sm text-muted-foreground">
+                                Bank details will appear once your invoice is issued. Contact the
+                                finance team if you need them sooner.
+                            </p>
+                        </div>
+
+                        <div class="space-y-2">
+                            <Label for="transaction_reference">{{ selectedType?.reference }}</Label>
+                            <Input
+                                id="transaction_reference"
+                                v-model="form.transaction_reference"
+                                :placeholder="
+                                    payingLater
+                                        ? 'Enter your LPO or PO number'
+                                        : 'Enter transaction or receipt reference'
+                                "
+                            />
+                            <InputError :message="form.errors.transaction_reference" />
+                        </div>
+
+                        <div class="space-y-2">
+                            <Label>
+                                {{ payingLater ? 'Upload your LPO/PO' : 'Upload Proof of Payment' }}
+                            </Label>
+                            <!-- Pay Later already says this in the card description. -->
+                            <p v-if="payingNow" class="text-sm text-muted-foreground">
+                                Please upload your bank slip, transfer confirmation, or other
+                                supporting payment document.
+                            </p>
+                            <FileUpload
+                                accept=".pdf,.jpg,.jpeg,.png"
+                                :max-size="10"
+                                :instructions="[
+                                    'Drag and drop your file here or click to browse.',
+                                    'Maximum file size: 10 MB per file',
+                                    'Accepted formats: PDF, JPG, JPEG, PNG',
+                                ]"
+                                @change="handleSupportingDocument"
+                            />
+                            <InputError :message="form.errors.supporting_document" />
+                        </div>
+
+                        <p
+                            v-if="payingLater"
+                            class="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
+                        >
+                            All payments must be completed before the conference.
                         </p>
-                    </CardContent>
-                </Card>
-            </div>
+                    </form>
+                </CardContent>
+                <CardFooter class="flex justify-end">
+                    <Button @click="submit" :disabled="form.processing">
+                        <Send class="mr-2 h-4 w-4" />
+                        {{ payingLater ? 'Submit LPO/PO' : 'Submit Payment Proof' }}
+                    </Button>
+                </CardFooter>
+            </Card>
+
+            <!-- 4. What happens next -->
+            <Card>
+                <CardHeader>
+                    <CardTitle class="flex items-center gap-2">
+                        <span class="font-mono text-sm text-muted-foreground">4</span>
+                        Finance Review
+                    </CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <p class="flex items-start gap-2 text-sm text-muted-foreground">
+                        <CheckCircle2 class="mt-0.5 h-4 w-4 shrink-0" />
+                        <span>
+                            Your payment documentation will be reviewed by the AHAIC Finance Team.
+                            You will then receive confirmation once your payment is finalized.
+                        </span>
+                    </p>
+                </CardContent>
+            </Card>
         </div>
     </div>
 </template>

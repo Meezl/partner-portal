@@ -9,9 +9,12 @@ use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
 /**
- * Thanks the partner for registering once their agreement is signed. The
- * invoice notification that follows is a request for money, so this is the
- * one message that simply welcomes them.
+ * Welcomes the partner once their agreement is signed and points them at the
+ * onboarding they have to complete next.
+ *
+ * The wording is the partnerships team's own, so it lives in a markdown view
+ * rather than being assembled from MailMessage lines — it carries headings and
+ * two bullet lists that `line()` cannot render.
  */
 class PartnerWelcomeNotification extends Notification implements ShouldQueue
 {
@@ -27,23 +30,37 @@ class PartnerWelcomeNotification extends Notification implements ShouldQueue
     public function toMail(object $notifiable): MailMessage
     {
         $partner = $this->agreement->partner;
-        $organization = $partner?->organization_name;
         $conference = $partner?->conference;
+        $conferenceName = $conference?->name ?: 'AHAIC 2027';
 
-        $mail = (new MailMessage)
-            ->subject('Thank you for partnering with '.($conference?->name ?: 'AHAIC'))
-            ->greeting('Hello '.$notifiable->name.',')
-            ->line('Thank you for registering'.($organization ? ' '.$organization : '')
-                .' as a partner of '.($conference?->name ?: 'AHAIC').'. Your signed agreement is now on file and we are delighted to have you with us.')
-            ->line('Our partnerships team will be in touch, and you can track everything — your sessions, delegates and branding — from your portal dashboard.')
-            ->action('Go to your dashboard', url('/partner/dashboard'));
+        return (new MailMessage)
+            ->subject('Welcome to '.$conferenceName.' | Partner Onboarding & Next Steps')
+            ->markdown('mail.partner-welcome', [
+                'organization' => $partner?->organization_name ?: 'Partner',
+                'conferenceName' => $conferenceName,
+                'dates' => $this->dates(),
+                'venue' => $conference?->venue ?: 'the Kigali Convention Centre, Kigali, Rwanda',
+                'arrivalMonth' => $conference?->start_date?->format('F Y') ?: 'February 2027',
+                'portalUrl' => url('/partner/onboarding'),
+                'websiteUrl' => 'https://ahaic.org',
+                'contactEmail' => config('ahaic.central_email', 'ahaic@amref.org'),
+            ]);
+    }
 
-        if ($partner?->physical_address_formatted) {
-            $mail->line('We have your address on file as: '.$partner->physical_address_formatted
-                .'. Let us know if anything there needs correcting.');
+    /**
+     * "28 February to 3 March 2027", from the conference's own dates.
+     */
+    private function dates(): string
+    {
+        $conference = $this->agreement->partner?->conference;
+        $start = $conference?->start_date;
+        $end = $conference?->end_date;
+
+        if (! $start || ! $end) {
+            return '28 February to 3 March 2027';
         }
 
-        return $mail->salutation('With thanks,'."\n".'The '.($conference?->name ?: 'AHAIC').' Partnerships Team');
+        return $start->format('j F').' to '.$end->format('j F Y');
     }
 
     public function toArray(object $notifiable): array
