@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Link, router } from '@inertiajs/vue3';
-import { Plus, Pencil, Trash2, CalendarDays, CalendarClock, Clock, MapPin } from 'lucide-vue-next';
+import { Plus, Pencil, Trash2, CalendarDays, CalendarClock, Clock } from 'lucide-vue-next';
 import { ref } from 'vue';
 import ConfirmDialog from '@/components/shared/ConfirmDialog.vue';
 import StatusBadge from '@/components/shared/StatusBadge.vue';
@@ -149,13 +149,6 @@ function timeState(session: ConferenceSession): TimeState | null {
                             <span class="text-muted-foreground flex items-center gap-1.5">
                                 <Clock class="h-4 w-4" />
                                 {{ timeState(session)!.when }}
-                            </span>
-                            <span
-                                v-if="timeState(session)!.room"
-                                class="text-muted-foreground flex items-center gap-1.5"
-                            >
-                                <MapPin class="h-4 w-4" />
-                                {{ timeState(session)!.room }}
                             </span>
                             <Badge
                                 v-if="timeState(session)!.kind === 'pending'"

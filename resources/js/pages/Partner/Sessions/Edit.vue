@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useForm } from '@inertiajs/vue3';
-import { Save, Plus, X, CalendarClock, MapPin } from 'lucide-vue-next';
+import { Save, Plus, X, CalendarClock } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import InputError from '@/components/InputError.vue';
 import SessionSlotPicker from '@/components/shared/SessionSlotPicker.vue';
@@ -222,9 +222,10 @@ const sessionFormats: { value: SessionFormat; label: string }[] = [
 
             <Card>
                 <CardHeader>
-                    <CardTitle>Date &amp; Time</CardTitle>
+                    <CardTitle>Preferred Date &amp; Time</CardTitle>
                     <CardDescription>
-                        Slots run across the conference dates<template v-if="conference?.start_date && conference?.end_date">
+                        Select the date and time that suits you. Slots run across the conference
+                        dates<template v-if="conference?.start_date && conference?.end_date">
                         ({{ formatCalendarDate(conference.start_date, { month: 'long', day: 'numeric' }) }}
                         – {{ formatCalendarDate(conference.end_date, { month: 'long', day: 'numeric', year: 'numeric' }) }})</template>.
                         Changing your date and time needs approval from the partnerships team — the rest of this
@@ -256,13 +257,6 @@ const sessionFormats: { value: SessionFormat; label: string }[] = [
                             <p class="text-muted-foreground">
                                 {{ bookingOnly ? boardBooking!.when : slotSchedule(currentSlot) }}
                             </p>
-                            <p
-                                v-if="boardBooking?.room"
-                                class="text-muted-foreground flex items-center gap-1.5"
-                            >
-                                <MapPin class="h-3.5 w-3.5" />
-                                {{ boardBooking.room }}
-                            </p>
                             <p v-if="bookingOnly" class="text-muted-foreground text-xs">
                                 The programme team placed this session directly, so it is not
                                 tied to a slot below. Choosing a slot will request a move.
@@ -285,7 +279,7 @@ const sessionFormats: { value: SessionFormat; label: string }[] = [
                         v-if="!timePending && form.session_slot_id && form.session_slot_id !== approvedSlotId"
                         class="space-y-2 border-t pt-4"
                     >
-                        <Label for="slot_reason">Any other additional comment (optional)</Label>
+                        <Label for="slot_reason">Any additional requests (optional)</Label>
                         <textarea
                             id="slot_reason"
                             v-model="form.slot_reason"

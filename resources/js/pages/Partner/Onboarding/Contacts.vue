@@ -19,6 +19,8 @@ const props = defineProps<{
     contacts: PartnerContact[];
     /** Role key → label for the role picker, from the server. */
     contactRoles: Record<string, string>;
+    /** Labels for every stored role, including ones no longer offered. */
+    roleLabels: Record<string, string>;
     /**
      * Role key → label for the contacts the section cannot be completed
      * without. Comes from OnboardingProgressService so the form and the
@@ -34,18 +36,17 @@ interface ContactEntry {
     phone: string;
     role: string;
     designation: string;
-    organization: string;
 }
 
 function blankContact(role: string): ContactEntry {
-    return { name: '', email: '', phone: '', role, designation: '', organization: '' };
+    return { name: '', email: '', phone: '', role, designation: '' };
 }
 
 const mandatoryRoleKeys = Object.keys(props.mandatoryRoles);
 
 /**
- * Open with one empty row per mandatory contact, so the two the partner must
- * name are on screen from the start rather than something they have to
+ * Open with one empty row per mandatory contact, so the contact the partner
+ * must name is on screen from the start rather than something they have to
  * discover by watching the progress bar refuse to reach 100%.
  */
 function initialContacts(): ContactEntry[] {
@@ -57,7 +58,6 @@ function initialContacts(): ContactEntry[] {
             phone: c.phone ?? '',
             role: c.role,
             designation: c.designation ?? '',
-            organization: c.organization ?? '',
         }));
 
         const missing = mandatoryRoleKeys
@@ -90,7 +90,7 @@ const mandatoryStatus = computed(() =>
 const allMandatoryComplete = computed(() => mandatoryStatus.value.every((entry) => entry.complete));
 
 function roleLabel(role: string): string {
-    return props.contactRoles[role] ?? role;
+    return props.roleLabels[role] ?? props.contactRoles[role] ?? role;
 }
 
 function isMandatory(role: string): boolean {
@@ -122,6 +122,19 @@ function submit() {
 const roles = computed(() =>
     Object.entries(props.contactRoles).map(([value, label]) => ({ value, label })),
 );
+
+/**
+ * The picker for one contact: the roles on offer, plus the contact's own role
+ * when it is one no longer offered — otherwise an older contact's row shows an
+ * empty picker and looks unanswered.
+ */
+function rolesFor(contact: ContactEntry) {
+    if (!contact.role || roles.value.some((role) => role.value === contact.role)) {
+        return roles.value;
+    }
+
+    return [...roles.value, { value: contact.role, label: roleLabel(contact.role) }];
+}
 </script>
 
 <template>
@@ -152,7 +165,8 @@ const roles = computed(() =>
                 />
                 <div class="space-y-3">
                     <p class="text-sm font-medium">
-                        Two contacts are mandatory — a name and an email for each completes this section.
+                        {{ mandatoryStatus.length === 1 ? 'One contact is mandatory' : `${mandatoryStatus.length} contacts are mandatory` }}
+                        — a name and an email completes this section.
                     </p>
                     <ul class="space-y-1.5">
                         <li
@@ -225,7 +239,7 @@ const roles = computed(() =>
                                     <SelectValue placeholder="Select role" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem v-for="role in roles" :key="role.value" :value="role.value">
+                                    <SelectItem v-for="role in rolesFor(contact)" :key="role.value" :value="role.value">
                                         {{ role.label }}
                                     </SelectItem>
                                 </SelectContent>
@@ -240,11 +254,6 @@ const roles = computed(() =>
                             <InputError :message="contactError(index, 'designation')" />
                         </div>
 
-                        <div class="space-y-2">
-                            <Label>Organization</Label>
-                            <Input v-model="contact.organization" placeholder="Organization name" />
-                            <InputError :message="contactError(index, 'organization')" />
-                        </div>
                     </div>
                 </CardContent>
             </Card>

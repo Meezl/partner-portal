@@ -16,16 +16,16 @@ defineOptions({ layout: PartnerLayout });
 const props = defineProps<{
     partner: Partner;
     branding: BrandingRequirement | null;
-    /** Option key → label for the communications checklist, from the server. */
-    commsOptions: Record<string, string>;
+    /** Option key → label for "are you planning anything?", from the server. */
+    planOptions: Record<string, string>;
 }>();
 
 /** Start from what was saved, so unticked options are present as false. */
-function initialCommsChecklist(): CommsChecklist {
-    const saved = props.branding?.comms_checklist ?? {};
+function initialPlans(): CommsChecklist {
+    const saved = props.branding?.ahaic_plans ?? {};
     const checklist: CommsChecklist = {};
 
-    Object.keys(props.commsOptions).forEach((key) => {
+    Object.keys(props.planOptions).forEach((key) => {
         checklist[key] = saved[key] === true;
     });
 
@@ -36,22 +36,37 @@ function initialCommsChecklist(): CommsChecklist {
 
 const form = useForm({
     _method: 'put',
-    requirements: props.branding?.requirements ?? '',
-    comms_checklist: initialCommsChecklist(),
-    assets: [] as File[],
+    ahaic_plans: initialPlans(),
+    plans_summary: props.branding?.plans_summary ?? '',
+    guideline_assets: [] as File[],
+    material_assets: [] as File[],
 });
 
-function handleAssetSelect(files: File[]) {
-    form.assets = files;
+/** Per-file upload errors come back as <field>.0, <field>.1, …; show them all. */
+function uploadErrors(field: 'guideline_assets' | 'material_assets') {
+    return Object.entries(form.errors)
+        .filter(([key]) => key === field || key.startsWith(`${field}.`))
+        .map(([, message]) => message);
 }
 
-/** Per-file upload errors come back as assets.0, assets.1, …; show them all. */
-const assetErrors = computed(() =>
-    Object.entries(form.errors)
-        .filter(([key]) => key === 'assets' || key.startsWith('assets.'))
-        .map(([, message]) => message),
-);
+const guidelineErrors = computed(() => uploadErrors('guideline_assets'));
+const materialErrors = computed(() => uploadErrors('material_assets'));
 
+/** Previously uploaded files, split by the question they answered. */
+function savedAssets(category: string) {
+    return (props.branding?.assets ?? []).filter(
+        (asset) => (asset.category ?? 'materials') === category,
+    );
+}
+
+const savedGuidelines = computed(() => savedAssets('guidelines'));
+const savedMaterials = computed(() => savedAssets('materials'));
+
+const uploadInstructions = [
+    'Drag and drop your files here or click to browse.',
+    'Maximum file size: 10 MB per file',
+    'Accepted formats: PDF, PNG, JPG, SVG, ZIP',
+];
 
 function submit() {
     form.post('/partner/onboarding/communications', {
@@ -66,7 +81,7 @@ function submit() {
         <div>
             <h1 class="font-heading text-3xl font-bold tracking-tight">Communications &amp; Branding</h1>
             <p class="text-muted-foreground mt-1">
-                Tell the communications team what you need, and upload your branding assets.
+                Share your brand guidelines and tell us what you are planning around AHAIC.
             </p>
         </div>
 
@@ -74,62 +89,27 @@ function submit() {
             <CardHeader>
                 <CardTitle class="flex items-center gap-2">
                     <Megaphone class="h-5 w-5" />
-                    Branding Requirements
+                    Brand Guidelines
                 </CardTitle>
-                <CardDescription>Describe how your brand should be represented at the conference.</CardDescription>
-            </CardHeader>
-            <CardContent class="space-y-6">
-                <div class="space-y-3">
-                    <div>
-                        <Label>What do you need from communications?</Label>
-                        <p class="text-muted-foreground mt-1 text-sm">
-                            Tick everything that applies. The communications team works from this list.
-                        </p>
-                    </div>
-                    <ChecklistGroup
-                        v-model="form.comms_checklist"
-                        :options="commsOptions"
-                        id-prefix="comms"
-                        other-placeholder="Tell us what else you need"
-                    />
-                    <InputError :message="form.errors.comms_checklist" />
-                </div>
-
-                <div class="space-y-2">
-                    <Label for="requirements">Any other additional comment</Label>
-                    <textarea
-                        id="requirements"
-                        v-model="form.requirements"
-                        rows="4"
-                        class="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex w-full rounded-md border px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
-                        placeholder="Describe your branding requirements, style guidelines, color preferences, etc."
-                    />
-                    <InputError :message="form.errors.requirements" />
-                </div>
-            </CardContent>
-        </Card>
-
-        <Card>
-            <CardHeader>
-                <CardTitle>Branding Assets</CardTitle>
                 <CardDescription>
-                    Upload logos, banners, or other branding materials — select as many files as you
-                    like in one go (ZIP, PNG, JPG, SVG, PDF accepted).
+                    Please provide the brand guidelines we should follow for the conference.
                 </CardDescription>
             </CardHeader>
-            <CardContent>
-                <div class="space-y-4">
+            <CardContent class="space-y-8">
+                <div class="space-y-3">
+                    <Label>Upload your branding guidelines for promotional plans</Label>
                     <FileUpload
                         accept=".zip,.png,.jpg,.jpeg,.pdf,.svg"
                         multiple
-                        @change-multiple="handleAssetSelect"
+                        :instructions="uploadInstructions"
+                        @change-multiple="(files: File[]) => (form.guideline_assets = files)"
                     />
-                    <InputError v-for="(message, i) in assetErrors" :key="i" :message="message" />
+                    <InputError v-for="(message, i) in guidelineErrors" :key="i" :message="message" />
 
-                    <div v-if="branding?.assets && branding.assets.length > 0">
-                        <p class="text-muted-foreground mb-2 text-sm font-medium">Previously uploaded assets:</p>
+                    <div v-if="savedGuidelines.length">
+                        <p class="text-muted-foreground mb-2 text-sm font-medium">Already uploaded:</p>
                         <ul class="space-y-1">
-                            <li v-for="(asset, i) in branding.assets" :key="i" class="text-sm">
+                            <li v-for="(asset, i) in savedGuidelines" :key="i" class="text-sm">
                                 <a
                                     :href="asset.url"
                                     target="_blank"
@@ -142,6 +122,71 @@ function submit() {
                             </li>
                         </ul>
                     </div>
+                </div>
+
+                <div class="space-y-3">
+                    <div>
+                        <Label>Upload any other branding materials</Label>
+                        <p class="text-muted-foreground mt-1 text-sm">
+                            An abridged set is fine — logos, templates, anything else we should use.
+                        </p>
+                    </div>
+                    <FileUpload
+                        accept=".zip,.png,.jpg,.jpeg,.pdf,.svg"
+                        multiple
+                        :instructions="uploadInstructions"
+                        @change-multiple="(files: File[]) => (form.material_assets = files)"
+                    />
+                    <InputError v-for="(message, i) in materialErrors" :key="i" :message="message" />
+
+                    <div v-if="savedMaterials.length">
+                        <p class="text-muted-foreground mb-2 text-sm font-medium">Already uploaded:</p>
+                        <ul class="space-y-1">
+                            <li v-for="(asset, i) in savedMaterials" :key="i" class="text-sm">
+                                <a
+                                    :href="asset.url"
+                                    target="_blank"
+                                    rel="noopener"
+                                    class="text-muted-foreground hover:text-foreground flex items-center gap-2 underline"
+                                >
+                                    <Upload class="h-3 w-3" />
+                                    {{ asset.name }}
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </CardContent>
+        </Card>
+
+        <Card>
+            <CardHeader>
+                <CardTitle>Are you planning anything around AHAIC?</CardTitle>
+                <CardDescription>
+                    Tick everything you are working on, then tell us about it below.
+                </CardDescription>
+            </CardHeader>
+            <CardContent class="space-y-6">
+                <div class="space-y-3">
+                    <ChecklistGroup
+                        v-model="form.ahaic_plans"
+                        :options="planOptions"
+                        id-prefix="plans"
+                        other-placeholder="Tell us what else you are planning"
+                    />
+                    <InputError :message="form.errors.ahaic_plans" />
+                </div>
+
+                <div class="space-y-2">
+                    <Label for="plans_summary">Please share one or two paragraphs on the above</Label>
+                    <textarea
+                        id="plans_summary"
+                        v-model="form.plans_summary"
+                        rows="6"
+                        class="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex w-full rounded-md border px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+                        placeholder="What you are planning, who it is with, and how it connects to the conference..."
+                    />
+                    <InputError :message="form.errors.plans_summary" />
                 </div>
             </CardContent>
             <CardFooter class="flex justify-end">

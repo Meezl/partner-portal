@@ -55,6 +55,7 @@ const props = defineProps<{
     exhibitionOptions: Record<string, string>;
     /** Option key → label for the communications checklist, from the server. */
     commsOptions: Record<string, string>;
+    planOptions: Record<string, string>;
     /** Role key → label, so roles read the same as on the partner's own form. */
     contactRoles: Record<string, string>;
     partner: Partner & {
@@ -188,6 +189,9 @@ const exhibitionRequirements = computed(() =>
 
 const commsRequirements = computed(() =>
     tickedChecklistLabels(props.commsOptions, branding.value?.comms_checklist ?? null),
+);
+const ahaicPlans = computed(() =>
+    tickedChecklistLabels(props.planOptions, branding.value?.ahaic_plans ?? null),
 );
 
 const socialLinks = computed(() => filledSocialLinks(props.partner.social_media));
@@ -627,8 +631,29 @@ const changeColumns = [
                     <CardTitle>Communications &amp; Branding</CardTitle>
                 </CardHeader>
                 <CardContent class="space-y-5">
+                    <div v-if="ahaicPlans.length > 0">
+                        <p class="mb-2 text-sm text-muted-foreground">Planning around AHAIC</p>
+                        <div class="flex flex-wrap gap-2">
+                            <Badge
+                                v-for="(label, index) in ahaicPlans"
+                                :key="index"
+                                variant="outline"
+                            >
+                                {{ label }}
+                            </Badge>
+                        </div>
+                    </div>
+
+                    <div v-if="branding?.plans_summary">
+                        <p class="text-sm text-muted-foreground">In their words</p>
+                        <p class="mt-1 text-sm whitespace-pre-line">
+                            {{ branding.plans_summary }}
+                        </p>
+                    </div>
+
+                    <!-- Answers to the questions this section used to ask. -->
                     <div v-if="commsRequirements.length > 0">
-                        <p class="mb-2 text-sm text-muted-foreground">Requested</p>
+                        <p class="mb-2 text-sm text-muted-foreground">Previously requested</p>
                         <div class="flex flex-wrap gap-2">
                             <Badge
                                 v-for="(label, index) in commsRequirements"
@@ -641,7 +666,7 @@ const changeColumns = [
                     </div>
 
                     <div v-if="branding?.requirements">
-                        <p class="text-sm text-muted-foreground">Additional comments</p>
+                        <p class="text-sm text-muted-foreground">Previous comments</p>
                         <p class="mt-1 text-sm whitespace-pre-line">
                             {{ branding.requirements }}
                         </p>
@@ -660,6 +685,8 @@ const changeColumns = [
 
                     <p
                         v-if="
+                            ahaicPlans.length === 0 &&
+                            !branding?.plans_summary &&
                             commsRequirements.length === 0 &&
                             !branding?.requirements &&
                             !branding?.assets?.length

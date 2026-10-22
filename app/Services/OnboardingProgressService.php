@@ -18,23 +18,33 @@ class OnboardingProgressService
     {
         return [
             'session_lead' => 'Session Lead',
-            'comms_lead' => 'Communications Lead',
             'media_lead' => 'Media Contact',
             'additional' => 'Additional Contact',
         ];
     }
 
     /**
-     * The two contacts every partner must name. Both are required before the
-     * Contacts section counts as done — the forms say so up front, because
-     * partners were adding two contacts of any role and wondering why the
-     * section stayed short of 100%.
+     * Every role a stored contact may carry, including ones the form no longer
+     * offers. Used for labelling and validation so a contact saved as a
+     * communications lead still reads correctly and still round-trips.
+     *
+     * @return array<string, string>
+     */
+    public static function storedContactRoles(): array
+    {
+        return [...self::contactRoles(), 'comms_lead' => 'Communications Lead'];
+    }
+
+    /**
+     * The contact every partner must name before the Contacts section counts
+     * as done. The forms say so up front, because partners were adding
+     * contacts of any role and wondering why the section stayed short of 100%.
      *
      * @return array<string, string>
      */
     public static function mandatoryContactRoles(): array
     {
-        return array_intersect_key(self::contactRoles(), array_flip(['session_lead', 'comms_lead']));
+        return array_intersect_key(self::contactRoles(), array_flip(['session_lead']));
     }
 
     public function calculate(Partner $partner): array
@@ -97,10 +107,17 @@ class OnboardingProgressService
             return 0;
         }
 
-        // The section asks one thing: what the partner needs from
-        // communications. Either the checklist or the free-text notes answers
-        // it. Branding assets are welcome but not every partner has one to
-        // send, so they do not gate the section.
+        // The section asks what the partner is planning around AHAIC, and
+        // for a paragraph on it. Either answers it. Brand guidelines are asked
+        // for too, but not every partner has a file to send, so uploads do not
+        // gate the section.
+        $plans = collect($branding->ahaic_plans ?? [])->filter(fn ($value) => ! empty($value));
+
+        if ($plans->isNotEmpty() || ! empty($branding->plans_summary)) {
+            return 100;
+        }
+
+        // Answers given before the section was reworked still count.
         $checklist = collect($branding->comms_checklist ?? [])->filter(fn ($value) => ! empty($value));
 
         return ! empty($branding->requirements) || $checklist->isNotEmpty() ? 100 : 0;
@@ -111,8 +128,8 @@ class OnboardingProgressService
         $contacts = $partner->contacts;
         $roles = array_keys(self::mandatoryContactRoles());
 
-        // Both mandatory contacts, each with a name and an email, is the whole
-        // section: once they are there the partner is at 100%.
+        // A mandatory contact with a name and an email is the whole section:
+        // once it is there the partner is at 100%.
         $named = collect($roles)->filter(fn (string $role) => $contacts
             ->where('role', $role)
             ->filter(fn ($contact) => filled($contact->name) && filled($contact->email))

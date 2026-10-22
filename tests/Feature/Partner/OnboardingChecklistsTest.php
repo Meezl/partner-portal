@@ -66,29 +66,65 @@ it('leaves an existing exhibition checklist alone when the profile is saved', fu
         ->and($partner->exhibition_preferences)->toBe('Corner booth if possible.');
 });
 
-it('stores the communications checklist and counts it towards progress', function () {
+it('stores what the partner is planning around AHAIC and counts it towards progress', function () {
     [$user, $partner] = checklistPartnerFixture();
 
     $this->actingAs($user)
         ->put(route('partner.onboarding.update', 'communications'), [
-            'comms_checklist' => [
-                'social_media' => true,
-                'press_release' => true,
-                'other' => null,
+            'ahaic_plans' => [
+                'research' => true,
+                'report' => true,
+                'other' => 'A youth fellowship launch',
             ],
+            'plans_summary' => 'We are publishing a report on community financing.',
         ])
         ->assertRedirect(route('partner.onboarding.index'))
         ->assertSessionHas('success');
 
     $branding = BrandingRequirement::firstOrFail();
 
-    expect($branding->comms_checklist['social_media'])->toBeTrue()
-        ->and($branding->comms_checklist['newsletter_feature'])->toBeFalse()
-        ->and($branding->comms_checklist['other'])->toBeNull()
-        // The checklist stands in for the free-text notes, so the section is
-        // complete without them, and without a media contact.
-        ->and($branding->requirements)->toBeNull()
+    expect($branding->ahaic_plans['research'])->toBeTrue()
+        ->and($branding->ahaic_plans['partnership'])->toBeFalse()
+        ->and($branding->ahaic_plans['other'])->toBe('A youth fellowship launch')
+        ->and($branding->plans_summary)->toBe('We are publishing a report on community financing.')
+        // Uploads are welcome but do not gate the section.
         ->and($partner->fresh()->onboarding_progress['communications'])->toBe(100);
+});
+
+it('no longer asks what the partner needs from communications', function () {
+    [$user, $partner] = checklistPartnerFixture();
+
+    // Captured before the section was reworked.
+    BrandingRequirement::create([
+        'partner_id' => $partner->id,
+        'requirements' => 'Standard cobranding.',
+        'comms_checklist' => ['social_media' => true, 'other' => null],
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('partner.onboarding.edit', 'communications'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('Partner/Onboarding/CommunicationsBranding')
+            ->missing('commsOptions')
+            ->where('planOptions.research', 'Research')
+            ->where('planOptions.partnership', 'Partnership or commitment'),
+        );
+
+    // Saving the new answers leaves the old ones alone rather than wiping them.
+    $this->actingAs($user)
+        ->put(route('partner.onboarding.update', 'communications'), [
+            'ahaic_plans' => ['report' => true],
+            'comms_checklist' => ['press_release' => true],
+            'requirements' => 'Overwritten?',
+        ])
+        ->assertSessionHas('success');
+
+    $branding = BrandingRequirement::firstOrFail();
+
+    expect($branding->requirements)->toBe('Standard cobranding.')
+        ->and($branding->comms_checklist['social_media'])->toBeTrue()
+        ->and($branding->ahaic_plans['report'])->toBeTrue();
 });
 
 it('stores a whole batch of branding assets in one save', function () {
@@ -98,11 +134,12 @@ it('stores a whole batch of branding assets in one save', function () {
 
     $this->actingAs($user)
         ->put(route('partner.onboarding.update', 'communications'), [
-            'requirements' => 'Standard cobranding.',
-            'assets' => [
+            'guideline_assets' => [
+                UploadedFile::fake()->create('brand-guide.pdf', 64, 'application/pdf'),
+            ],
+            'material_assets' => [
                 UploadedFile::fake()->create('logo-pack.zip', 64, 'application/zip'),
                 UploadedFile::fake()->image('banner.png'),
-                UploadedFile::fake()->create('brand-guide.pdf', 64, 'application/pdf'),
             ],
         ])
         ->assertRedirect(route('partner.onboarding.index'))
@@ -113,7 +150,10 @@ it('stores a whole batch of branding assets in one save', function () {
     expect($assets)->toHaveCount(3)
         // The names the partner gave the files, not the hashed storage names.
         ->and(array_column($assets, 'name'))
-        ->toBe(['logo-pack.zip', 'banner.png', 'brand-guide.pdf'])
+        ->toBe(['brand-guide.pdf', 'logo-pack.zip', 'banner.png'])
+        // Each file is filed under the question it answered.
+        ->and(array_column($assets, 'category'))
+        ->toBe(['guidelines', 'materials', 'materials'])
         ->and(Storage::disk('public')->allFiles("partners/{$partner->id}/branding"))->toHaveCount(3);
 });
 
@@ -124,8 +164,7 @@ it('keeps assets from earlier batches when a new batch is uploaded', function ()
 
     $upload = fn (array $files) => $this->actingAs($user)
         ->put(route('partner.onboarding.update', 'communications'), [
-            'requirements' => 'Standard cobranding.',
-            'assets' => $files,
+            'material_assets' => $files,
         ])
         ->assertSessionHas('success');
 
@@ -142,13 +181,12 @@ it('rejects a branding asset of the wrong type without losing the rest', functio
 
     $this->actingAs($user)
         ->put(route('partner.onboarding.update', 'communications'), [
-            'requirements' => 'Standard cobranding.',
-            'assets' => [
+            'material_assets' => [
                 UploadedFile::fake()->image('fine.png'),
                 UploadedFile::fake()->create('macro.docx', 64, 'application/msword'),
             ],
         ])
-        ->assertSessionHasErrors('assets.1');
+        ->assertSessionHasErrors('material_assets.1');
 
     expect(BrandingRequirement::count())->toBe(0);
 });
@@ -168,7 +206,7 @@ it('stores a designation for each contact', function () {
                 [
                     'name' => 'Brian Mutua',
                     'email' => 'brian@example.org',
-                    'role' => 'comms_lead',
+                    'role' => 'media_lead',
                     'designation' => 'Communications Manager',
                 ],
             ],
@@ -178,12 +216,12 @@ it('stores a designation for each contact', function () {
 
     expect(PartnerContact::where('role', 'session_lead')->firstOrFail()->designation)
         ->toBe('Head of Programmes')
-        ->and(PartnerContact::where('role', 'comms_lead')->firstOrFail()->designation)
+        ->and(PartnerContact::where('role', 'media_lead')->firstOrFail()->designation)
         ->toBe('Communications Manager')
         ->and($partner->fresh()->onboarding_progress['contacts'])->toBe(100);
 });
 
-it('names the two mandatory contacts on the contacts form', function () {
+it('names the mandatory contact on the contacts form and no longer offers comms lead', function () {
     [$user] = checklistPartnerFixture();
 
     $this->actingAs($user)
@@ -191,38 +229,30 @@ it('names the two mandatory contacts on the contacts form', function () {
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
             ->component('Partner/Onboarding/Contacts')
-            ->where('mandatoryRoles', [
-                'session_lead' => 'Session Lead',
-                'comms_lead' => 'Communications Lead',
-            ]),
+            ->where('mandatoryRoles', ['session_lead' => 'Session Lead'])
+            ->missing('contactRoles.comms_lead')
+            // Still labelled, so a contact stored under it reads correctly.
+            ->where('roleLabels.comms_lead', 'Communications Lead'),
         );
 });
 
-it('holds contacts progress at half until both mandatory contacts are named', function () {
+it('completes contacts progress on the session lead alone', function () {
     [$user, $partner] = checklistPartnerFixture();
 
     $progress = app(OnboardingProgressService::class);
 
-    PartnerContact::factory()->create([
-        'partner_id' => $partner->id,
-        'role' => 'session_lead',
-    ]);
-
-    expect($progress->calculate($partner->fresh(['contacts', 'brandingRequirement', 'sessions']))['contacts'])
-        ->toBe(50);
-
-    // More contacts of other roles do not move it — only the mandatory two do.
     PartnerContact::factory()->count(3)->create([
         'partner_id' => $partner->id,
         'role' => 'additional',
     ]);
 
+    // Contacts of other roles do not move it — only the mandatory one does.
     expect($progress->calculate($partner->fresh(['contacts', 'brandingRequirement', 'sessions']))['contacts'])
-        ->toBe(50);
+        ->toBe(0);
 
     PartnerContact::factory()->create([
         'partner_id' => $partner->id,
-        'role' => 'comms_lead',
+        'role' => 'session_lead',
     ]);
 
     expect($progress->calculate($partner->fresh(['contacts', 'brandingRequirement', 'sessions']))['contacts'])
@@ -237,14 +267,45 @@ it('does not count a mandatory contact that is missing a name or email', functio
         'role' => 'session_lead',
         'email' => '',
     ]);
-    PartnerContact::factory()->create([
-        'partner_id' => $partner->id,
-        'role' => 'comms_lead',
-    ]);
 
     expect(app(OnboardingProgressService::class)
         ->calculate($partner->fresh(['contacts', 'brandingRequirement', 'sessions']))['contacts'])
-        ->toBe(50);
+        ->toBe(0);
+});
+
+it('no longer stores an organization against a contact', function () {
+    [$user] = checklistPartnerFixture();
+
+    $this->actingAs($user)
+        ->put(route('partner.onboarding.update', 'contacts'), [
+            'contacts' => [
+                [
+                    'name' => 'Amina Odhiambo',
+                    'email' => 'amina@example.org',
+                    'role' => 'session_lead',
+                    // A stale client posting it must not write it.
+                    'organization' => 'Somewhere Else Ltd',
+                ],
+            ],
+        ])
+        ->assertSessionHas('success');
+
+    expect(PartnerContact::firstOrFail()->organization)->toBeNull();
+});
+
+it('still saves a contact stored under the retired comms lead role', function () {
+    [$user] = checklistPartnerFixture();
+
+    $this->actingAs($user)
+        ->put(route('partner.onboarding.update', 'contacts'), [
+            'contacts' => [
+                ['name' => 'Amina', 'email' => 'amina@example.org', 'role' => 'session_lead'],
+                ['name' => 'Brian', 'email' => 'brian@example.org', 'role' => 'comms_lead'],
+            ],
+        ])
+        ->assertSessionHas('success');
+
+    expect(PartnerContact::where('role', 'comms_lead')->count())->toBe(1);
 });
 
 it('offers a media contact role and stores one', function () {
@@ -264,7 +325,6 @@ it('offers a media contact role and stores one', function () {
         ->put(route('partner.onboarding.update', 'contacts'), [
             'contacts' => [
                 ['name' => 'Amina', 'email' => 'amina@example.org', 'role' => 'session_lead'],
-                ['name' => 'Brian', 'email' => 'brian@example.org', 'role' => 'comms_lead'],
                 [
                     'name' => 'Grace Wanjiru',
                     'email' => 'grace@example.org',
@@ -298,12 +358,12 @@ it('rejects a contact role the form does not offer', function () {
     expect(PartnerContact::count())->toBe(0);
 });
 
-it('completes communications without a media contact', function () {
+it('completes communications on the summary alone', function () {
     [$user, $partner] = checklistPartnerFixture();
 
     $this->actingAs($user)
         ->put(route('partner.onboarding.update', 'communications'), [
-            'comms_checklist' => ['logo_placement' => true],
+            'plans_summary' => 'A report launch on the opening day.',
         ])
         ->assertSessionHas('success');
 
@@ -317,8 +377,8 @@ it('shows the uploaded assets on the review page rather than a media contact', f
 
     $this->actingAs($user)
         ->put(route('partner.onboarding.update', 'communications'), [
-            'comms_checklist' => ['logo_placement' => true],
-            'assets' => [UploadedFile::fake()->image('our-logo.png')],
+            'ahaic_plans' => ['research' => true],
+            'guideline_assets' => [UploadedFile::fake()->image('our-logo.png')],
         ])
         ->assertSessionHas('success');
 
@@ -329,7 +389,7 @@ it('shows the uploaded assets on the review page rather than a media contact', f
             ->component('Partner/Review')
             ->has('partner.branding_requirement.assets', 1)
             ->where('partner.branding_requirement.assets.0.name', 'our-logo.png')
-            ->where('commsOptions.logo_placement', 'Logo placement on conference materials')
+            ->where('partner.branding_requirement.assets.0.category', 'guidelines')
             ->missing('partner.branding_requirement.media_contact_name'),
         );
 });

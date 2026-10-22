@@ -39,7 +39,8 @@ class SubmissionController extends Controller
             'partner' => $partner,
             'progress' => $progress,
             'commsOptions' => OnboardingChecklists::communications(),
-            'contactRoles' => OnboardingProgressService::contactRoles(),
+            'planOptions' => OnboardingChecklists::ahaicPlans(),
+            'contactRoles' => OnboardingProgressService::storedContactRoles(),
         ]);
     }
 

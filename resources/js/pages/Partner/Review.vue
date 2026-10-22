@@ -30,6 +30,7 @@ const props = defineProps<{
     /** Option key → label for the exhibition checklist, from the server. */
     /** Option key → label for the communications checklist, from the server. */
     commsOptions: Record<string, string>;
+    planOptions: Record<string, string>;
     /** Role key → label, so the summary matches the Contacts form. */
     contactRoles: Record<string, string>;
 }>();
@@ -64,6 +65,9 @@ const contacts = props.partner.contacts ?? [];
 const branding = (props.partner.branding_requirement ?? null) as BrandingRequirement | null;
 const commsRequirements = computed(() =>
     tickedChecklistLabels(props.commsOptions, branding?.comms_checklist ?? null),
+);
+const ahaicPlans = computed(() =>
+    tickedChecklistLabels(props.planOptions, branding?.ahaic_plans ?? null),
 );
 const socialLinks = computed(() => filledSocialLinks(props.partner.social_media));
 const canSubmit = computed(() =>
@@ -116,8 +120,23 @@ const submitBlockers = computed(() => {
                 </CardTitle>
             </CardHeader>
             <CardContent class="space-y-4">
+                <div v-if="ahaicPlans.length > 0">
+                    <p class="text-muted-foreground mb-2 text-sm">Planning around AHAIC</p>
+                    <div class="flex flex-wrap gap-2">
+                        <Badge v-for="(label, index) in ahaicPlans" :key="index" variant="outline">
+                            {{ label }}
+                        </Badge>
+                    </div>
+                </div>
+
+                <div v-if="branding?.plans_summary">
+                    <p class="text-muted-foreground text-sm">In their words</p>
+                    <p class="mt-1 text-sm">{{ branding.plans_summary }}</p>
+                </div>
+
+                <!-- Answers to the questions this section used to ask. -->
                 <div v-if="commsRequirements.length > 0">
-                    <p class="text-muted-foreground mb-2 text-sm">Requested</p>
+                    <p class="text-muted-foreground mb-2 text-sm">Previously requested</p>
                     <div class="flex flex-wrap gap-2">
                         <Badge v-for="(label, index) in commsRequirements" :key="index" variant="outline">
                             {{ label }}
@@ -126,7 +145,7 @@ const submitBlockers = computed(() => {
                 </div>
 
                 <div v-if="branding?.requirements">
-                    <p class="text-muted-foreground text-sm">Additional comments</p>
+                    <p class="text-muted-foreground text-sm">Previous comments</p>
                     <p class="mt-1 text-sm">{{ branding.requirements }}</p>
                 </div>
 
@@ -142,11 +161,17 @@ const submitBlockers = computed(() => {
                 </div>
 
                 <p
-                    v-if="commsRequirements.length === 0 && !branding?.requirements && !branding?.assets?.length"
+                    v-if="
+                        ahaicPlans.length === 0 &&
+                        !branding?.plans_summary &&
+                        commsRequirements.length === 0 &&
+                        !branding?.requirements &&
+                        !branding?.assets?.length
+                    "
                     class="text-muted-foreground text-sm"
                 >
-                    Nothing added yet — tell the communications team what you need, and upload your
-                    branding assets.
+                    Nothing added yet — share your brand guidelines and tell us what you are
+                    planning around AHAIC.
                 </p>
             </CardContent>
         </Card>

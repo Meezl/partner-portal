@@ -62,7 +62,7 @@ function submit() {
         <Card>
             <CardHeader>
                 <CardTitle>Logo</CardTitle>
-                <CardDescription>Upload your organization logo. Recommended size: 400x400px, PNG or SVG format.</CardDescription>
+                <CardDescription>Upload a transparent version of your organization logo. PNG, SVG or JPEG, recommended size 400x400px.</CardDescription>
             </CardHeader>
             <CardContent>
                 <div class="flex items-start gap-6">
@@ -73,7 +73,15 @@ function submit() {
                         <Image class="text-muted-foreground h-8 w-8" />
                     </div>
                     <div class="flex-1">
-                        <FileUpload accept=".png,.jpg,.jpeg,.svg" @change="handleLogoSelect" />
+                        <FileUpload
+                            accept=".png,.jpg,.jpeg,.svg"
+                            :instructions="[
+                                'Drag and drop your logo here or click to browse.',
+                                'Please send a transparent version of the logo.',
+                                'Accepted formats: PNG, SVG, JPEG',
+                            ]"
+                            @change="handleLogoSelect"
+                        />
                         <InputError :message="form.errors.logo" class="mt-2" />
                     </div>
                 </div>

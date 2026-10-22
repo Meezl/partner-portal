@@ -51,6 +51,21 @@ class OnboardingChecklists
     }
 
     /**
+     * What a partner is planning around the conference.
+     *
+     * @return array<string, string>
+     */
+    public static function ahaicPlans(): array
+    {
+        return [
+            'research' => 'Research',
+            'programme' => 'A programme or initiative',
+            'report' => 'Report',
+            'partnership' => 'Partnership or commitment',
+        ];
+    }
+
+    /**
      * Validation rules for a checklist payload, e.g. rulesFor('exhibition_requirements', self::exhibition()).
      *
      * @param  array<string, string>  $options

@@ -161,9 +161,9 @@ const sessionFormats: { value: SessionFormat; label: string }[] = [
 
             <Card>
                 <CardHeader>
-                    <CardTitle>Date &amp; Time</CardTitle>
+                    <CardTitle>Preferred Date &amp; Time</CardTitle>
                     <CardDescription>
-                        Choose a slot from the AHAIC scheduling matrix. Slots run across the conference
+                        Select the date and time that suits you. Slots run across the conference
                         dates<template v-if="conference?.start_date && conference?.end_date">
                         ({{ formatCalendarDate(conference.start_date, { month: 'long', day: 'numeric' }) }}
                         – {{ formatCalendarDate(conference.end_date, { month: 'long', day: 'numeric', year: 'numeric' }) }})</template>.
@@ -179,7 +179,7 @@ const sessionFormats: { value: SessionFormat; label: string }[] = [
                     <InputError :message="form.errors.session_slot_id" />
 
                     <div v-if="form.session_slot_id" class="space-y-2 border-t pt-4">
-                        <Label for="slot_reason">Any other additional comment (optional)</Label>
+                        <Label for="slot_reason">Any additional requests (optional)</Label>
                         <textarea
                             id="slot_reason"
                             v-model="form.slot_reason"

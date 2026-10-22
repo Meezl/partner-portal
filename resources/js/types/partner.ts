@@ -370,12 +370,19 @@ export type ExhibitionChecklist = Checklist;
 export interface BrandingAsset {
     name: string;
     url: string;
+    /** Which upload it answered. Absent on files stored before the split. */
+    category?: 'guidelines' | 'materials' | null;
 }
 
 export interface BrandingRequirement {
     id: number;
     partner_id: number;
+    /** Retired from the form; kept for answers given earlier. */
     requirements: string | null;
+    /** Retired from the form; kept for answers given earlier. */
     comms_checklist: CommsChecklist | null;
+    /** What the partner is planning around AHAIC. */
+    ahaic_plans: CommsChecklist | null;
+    plans_summary: string | null;
     assets: BrandingAsset[] | null;
 }

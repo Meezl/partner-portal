@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { CalendarClock, Clock, Lock, MapPin } from 'lucide-vue-next';
+import { CalendarClock, Clock, Lock } from 'lucide-vue-next';
 import { computed } from 'vue';
 import { Badge } from '@/components/ui/badge';
 import { parseCalendarDate } from '@/lib/utils';
@@ -123,10 +123,6 @@ function select(slot: SessionSlot) {
                         <template v-if="slot.track_label">· {{ slot.track_label }}</template>
                     </span>
 
-                    <span v-if="slot.default_room" class="text-muted-foreground flex items-center gap-1.5 text-xs">
-                        <MapPin class="h-3 w-3" />
-                        {{ slot.default_room.name }}
-                    </span>
                 </label>
             </div>
         </div>

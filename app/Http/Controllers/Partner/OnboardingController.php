@@ -21,6 +21,15 @@ use Throwable;
 class OnboardingController extends Controller
 {
     /**
+     * The communications section's two uploads, and the category each file is
+     * filed under so a reviewer can tell guidelines from everything else.
+     */
+    private const ASSET_CATEGORIES = [
+        'guideline_assets' => 'guidelines',
+        'material_assets' => 'materials',
+    ];
+
+    /**
      * Show onboarding overview with progress per section.
      */
     public function index(Request $request): Response
@@ -69,12 +78,13 @@ class OnboardingController extends Controller
 
         if ($section === 'communications') {
             $props['branding'] = $partner->brandingRequirement;
-            $props['commsOptions'] = OnboardingChecklists::communications();
+            $props['planOptions'] = OnboardingChecklists::ahaicPlans();
         }
 
         if ($section === 'contacts') {
             $props['contacts'] = $partner->contacts;
             $props['contactRoles'] = OnboardingProgressService::contactRoles();
+            $props['roleLabels'] = OnboardingProgressService::storedContactRoles();
             $props['mandatoryRoles'] = OnboardingProgressService::mandatoryContactRoles();
         }
 
@@ -180,25 +190,35 @@ class OnboardingController extends Controller
      */
     private function updateCommunicationsSection(Request $request, $partner): void
     {
-        // Assets arrive as a batch. Arr::wrap also accepts a lone file, so a
-        // client posting a single upload still works.
-        $assets = array_values(array_filter(Arr::wrap($request->file('assets'))));
+        // Two separate asks, each a batch. Arr::wrap also accepts a lone file,
+        // so a client posting a single upload still works.
+        $uploads = [];
+
+        foreach (self::ASSET_CATEGORIES as $field => $category) {
+            $uploads[$field] = array_values(array_filter(Arr::wrap($request->file($field))));
+        }
 
         $validated = validator(
-            [...$request->except('assets'), 'assets' => $assets],
+            [...$request->except(array_keys(self::ASSET_CATEGORIES)), ...$uploads],
             [
-                'requirements' => ['nullable', 'string', 'max:5000'],
-                'assets' => ['array', 'max:20'],
-                'assets.*' => ['file', 'mimes:zip,png,jpg,jpeg,pdf,svg', 'max:10240'],
-                ...OnboardingChecklists::rulesFor('comms_checklist', OnboardingChecklists::communications()),
+                'plans_summary' => ['nullable', 'string', 'max:5000'],
+                'guideline_assets' => ['array', 'max:20'],
+                'guideline_assets.*' => ['file', 'mimes:zip,png,jpg,jpeg,pdf,svg', 'max:10240'],
+                'material_assets' => ['array', 'max:20'],
+                'material_assets.*' => ['file', 'mimes:zip,png,jpg,jpeg,pdf,svg', 'max:10240'],
+                ...OnboardingChecklists::rulesFor('ahaic_plans', OnboardingChecklists::ahaicPlans()),
             ],
             [
-                // The default wording names the field "assets.0", which means
-                // nothing to a partner looking at a list of filenames.
-                'assets.max' => 'You can upload up to 20 branding assets at a time.',
-                'assets.*.file' => 'Each branding asset must be an uploaded file.',
-                'assets.*.mimes' => 'Each branding asset must be a ZIP, PNG, JPG, PDF or SVG file.',
-                'assets.*.max' => 'Each branding asset must be 10 MB or smaller.',
+                // The default wording names the field "guideline_assets.0",
+                // which means nothing to a partner looking at filenames.
+                'guideline_assets.max' => 'You can upload up to 20 branding guideline files at a time.',
+                'guideline_assets.*.file' => 'Each branding guideline must be an uploaded file.',
+                'guideline_assets.*.mimes' => 'Each branding guideline must be a ZIP, PNG, JPG, PDF or SVG file.',
+                'guideline_assets.*.max' => 'Each branding guideline must be 10 MB or smaller.',
+                'material_assets.max' => 'You can upload up to 20 branding materials at a time.',
+                'material_assets.*.file' => 'Each branding material must be an uploaded file.',
+                'material_assets.*.mimes' => 'Each branding material must be a ZIP, PNG, JPG, PDF or SVG file.',
+                'material_assets.*.max' => 'Each branding material must be 10 MB or smaller.',
             ],
         )->validate();
 
@@ -207,32 +227,35 @@ class OnboardingController extends Controller
         // the assets from an earlier save.
         $brandingRequirement = BrandingRequirement::firstWhere('partner_id', $partner->id);
         $existingAssets = $brandingRequirement?->assets ?? [];
+        $disk = config('ahaic.disks.public');
 
-        if ($assets !== []) {
-            $disk = config('ahaic.disks.public');
-
+        foreach (self::ASSET_CATEGORIES as $field => $category) {
             // Partners send a whole batch at once, so every file in the request
             // is stored rather than only the first. The name the partner gave
             // the file is kept: storage names them by hash, and a review screen
             // listing "qG9WgooMF….png" tells nobody what was uploaded.
-            foreach ($assets as $asset) {
+            foreach ($uploads[$field] as $asset) {
                 $path = $asset->store("partners/{$partner->id}/branding", $disk);
 
                 $existingAssets[] = [
                     'name' => $asset->getClientOriginalName(),
                     'url' => Storage::disk($disk)->url($path),
+                    'category' => $category,
                 ];
             }
         }
 
+        // `requirements` and `comms_checklist` are left out on purpose: the
+        // form no longer asks for either, and writing them here would wipe the
+        // answers partners gave before the section was reworked.
         BrandingRequirement::updateOrCreate(
             ['partner_id' => $partner->id],
             [
-                'requirements' => $validated['requirements'] ?? null,
-                'comms_checklist' => OnboardingChecklists::normalise(
-                    OnboardingChecklists::communications(),
-                    $validated['comms_checklist'] ?? null,
+                'ahaic_plans' => OnboardingChecklists::normalise(
+                    OnboardingChecklists::ahaicPlans(),
+                    $validated['ahaic_plans'] ?? null,
                 ),
+                'plans_summary' => $validated['plans_summary'] ?? null,
                 'assets' => $existingAssets,
             ],
         );
@@ -248,9 +271,11 @@ class OnboardingController extends Controller
             'contacts.*.name' => ['required', 'string', 'max:255'],
             'contacts.*.email' => ['required', 'email', 'max:255'],
             'contacts.*.phone' => ['nullable', 'string', 'max:50'],
-            'contacts.*.role' => ['required', Rule::in(array_keys(OnboardingProgressService::contactRoles()))],
+            // Accepts a retired role too, so a contact stored as a
+            // communications lead still saves when the rest of the form is
+            // edited.
+            'contacts.*.role' => ['required', Rule::in(array_keys(OnboardingProgressService::storedContactRoles()))],
             'contacts.*.designation' => ['nullable', 'string', 'max:255'],
-            'contacts.*.organization' => ['nullable', 'string', 'max:255'],
         ]);
 
         // Sync partner contacts
@@ -264,7 +289,6 @@ class OnboardingController extends Controller
                 'phone' => $contact['phone'] ?? null,
                 'role' => $contact['role'],
                 'designation' => $contact['designation'] ?? null,
-                'organization' => $contact['organization'] ?? null,
             ]);
         }
     }

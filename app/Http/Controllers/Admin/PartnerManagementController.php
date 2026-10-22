@@ -76,7 +76,8 @@ class PartnerManagementController extends Controller
             // server, so the admin review reads the same labels the partner saw.
             'exhibitionOptions' => OnboardingChecklists::exhibition(),
             'commsOptions' => OnboardingChecklists::communications(),
-            'contactRoles' => OnboardingProgressService::contactRoles(),
+            'planOptions' => OnboardingChecklists::ahaicPlans(),
+            'contactRoles' => OnboardingProgressService::storedContactRoles(),
         ]);
     }
 

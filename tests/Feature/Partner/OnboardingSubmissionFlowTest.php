@@ -85,18 +85,17 @@ it('completes onboarding sections and exposes the review page with computed prog
     $this
         ->actingAs($user)
         ->put(route('partner.onboarding.update', 'communications'), [
-            'requirements' => 'Please use our approved cobranding guide and green palette.',
-            'media_contact_name' => 'Media Lead',
-            'media_contact_email' => 'media@example.org',
-            'media_contact_phone' => '+254700000001',
-            'assets' => UploadedFile::fake()->create('brand-kit.zip', 256, 'application/zip'),
+            'ahaic_plans' => ['research' => true, 'report' => true],
+            'plans_summary' => 'Launching our community financing report at the conference.',
+            'guideline_assets' => [UploadedFile::fake()->create('brand-kit.zip', 256, 'application/zip')],
         ])
         ->assertRedirect(route('partner.onboarding.index'))
         ->assertSessionHas('success', 'Communications section updated successfully.');
 
     $branding = BrandingRequirement::firstOrFail();
 
-    expect($branding->requirements)->toContain('cobranding')
+    expect($branding->plans_summary)->toContain('community financing')
+        ->and($branding->ahaic_plans['research'])->toBeTrue()
         ->and($branding->assets)->toHaveCount(1)
         ->and($partner->fresh()->onboarding_progress['communications'])->toBe(100);
 
@@ -110,15 +109,13 @@ it('completes onboarding sections and exposes the review page with computed prog
                     'phone' => '+254700000002',
                     'role' => 'session_lead',
                     'designation' => 'Head of Programmes',
-                    'organization' => 'Example Org',
                 ],
                 [
-                    'name' => 'Communications Lead',
-                    'email' => 'comms@example.org',
+                    'name' => 'Media Lead',
+                    'email' => 'media@example.org',
                     'phone' => '+254700000003',
-                    'role' => 'comms_lead',
+                    'role' => 'media_lead',
                     'designation' => 'Communications Manager',
-                    'organization' => 'Example Org',
                 ],
             ],
         ])
@@ -208,7 +205,7 @@ it('locks the submission, marks sessions submitted, and sends notifications', fu
 
     PartnerContact::factory()->create([
         'partner_id' => $partner->id,
-        'role' => 'comms_lead',
+        'role' => 'media_lead',
     ]);
 
     $session = ConferenceSession::factory()->create([
