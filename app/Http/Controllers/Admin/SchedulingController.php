@@ -223,12 +223,7 @@ class SchedulingController extends Controller
 
         // Capture where it was before we delete it, so the partner is told what
         // they are losing rather than just that something changed.
-        $schedule->loadMissing(['room', 'timeSlot']);
-        $previous = $schedule->room && $schedule->timeSlot
-            ? $schedule->room->name.' on '.$schedule->timeSlot->date->format('D j M')
-                .', '.substr((string) $schedule->timeSlot->start_time, 0, 5)
-                .'–'.substr((string) $schedule->timeSlot->end_time, 0, 5)
-            : null;
+        $previous = $schedule->placementLabel();
 
         DB::transaction(function () use ($schedule, $session) {
             // resource_assignments cascade on delete at the DB level.

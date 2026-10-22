@@ -9,6 +9,8 @@ use App\Models\AuditLog;
 use App\Models\Conference;
 use App\Models\ConferenceSession;
 use App\Notifications\SessionReviewedNotification;
+use App\Notifications\SessionScheduledNotification;
+use App\Notifications\SessionUnscheduledNotification;
 use App\Services\SessionTimeRequestService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -132,12 +134,17 @@ class SessionReviewController extends Controller
 
         $session->update(['title' => $validated['title']]);
 
+        $previousSlotId = $session->session_slot_id;
+        $previousPlacement = $session->sessionSchedule?->placementLabel();
+
         // Throws a validation error if the slot was taken in the meantime.
         $this->timeRequests->assignSlotDirectly(
             $session,
             $validated['session_slot_id'] ?? null,
             $request->user(),
         );
+
+        $this->notifyTimeChange($session->refresh(), $previousSlotId, $previousPlacement);
 
         return back()->with('success', 'Session updated.');
     }
@@ -152,6 +159,38 @@ class SessionReviewController extends Controller
             'old_values' => ['status' => $from->value],
             'new_values' => ['status' => $to->value],
         ]);
+    }
+
+    /**
+     * Tell the partner when the team move or clear their date and time.
+     *
+     * The scheduling board already does this when a session is moved there;
+     * this is the same change made from the review screen, and the partner has
+     * as much reason to hear about it.
+     */
+    private function notifyTimeChange(ConferenceSession $session, ?int $previousSlotId, ?string $previousPlacement): void
+    {
+        if ($session->session_slot_id === $previousSlotId) {
+            return;
+        }
+
+        $user = $session->partner?->user;
+
+        if (! $user) {
+            return;
+        }
+
+        $schedule = $session->sessionSchedule;
+
+        if ($schedule) {
+            $user->notify(new SessionScheduledNotification($schedule->load(['session.partner', 'room', 'timeSlot'])));
+
+            return;
+        }
+
+        // The slot was cleared, or it has no room to derive a booking from —
+        // either way the partner no longer has the time they had.
+        $user->notify(new SessionUnscheduledNotification($session, $previousPlacement));
     }
 
     private function notifyPartner(ConferenceSession $session, bool $approved, ?string $notes): void

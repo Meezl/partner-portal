@@ -212,3 +212,127 @@ it('keeps a partner away from the room allocation screens', function () {
         ->get(route('admin.scheduling.index'))
         ->assertForbidden();
 });
+
+it('tells the partner when the team move their time on the board', function () {
+    Notification::fake();
+
+    ['partnerUser' => $partnerUser, 'partner' => $partner, 'admin' => $admin,
+        'conference' => $conference, 'room' => $room, 'timeSlot' => $timeSlot] = journeyFixture();
+
+    $later = TimeSlot::factory()->create([
+        'conference_id' => $conference->id,
+        'date' => '2027-03-02',
+        'start_time' => '14:00:00',
+        'end_time' => '15:30:00',
+    ]);
+
+    $session = ConferenceSession::factory()->submitted()->create([
+        'partner_id' => $partner->id,
+        'conference_id' => $conference->id,
+    ]);
+
+    $this->actingAs($admin)
+        ->post(route('admin.scheduling.assign', $session), [
+            'room_id' => $room->id,
+            'time_slot_id' => $timeSlot->id,
+        ])
+        ->assertSessionHas('success');
+
+    // Same room, a different time: the team can move the time after allocating.
+    $this->actingAs($admin)
+        ->put(route('admin.scheduling.update', $session), [
+            'room_id' => $room->id,
+            'time_slot_id' => $later->id,
+        ])
+        ->assertSessionHas('success');
+
+    expect(SessionSchedule::where('conference_session_id', $session->id)->sole()->time_slot_id)
+        ->toBe($later->id);
+
+    // Once for the allocation, once for the move.
+    Notification::assertSentToTimes($partnerUser, SessionScheduledNotification::class, 2);
+});
+
+it('tells the partner when the team move their time from the review screen', function () {
+    Notification::fake();
+
+    ['partnerUser' => $partnerUser, 'partner' => $partner, 'admin' => $admin,
+        'conference' => $conference, 'slot' => $slot, 'room' => $room] = journeyFixture();
+
+    // The slot carries a room, so the board booking is derived from it.
+    $slot->update(['default_room_id' => $room->id]);
+
+    $session = ConferenceSession::factory()->submitted()->create([
+        'partner_id' => $partner->id,
+        'conference_id' => $conference->id,
+    ]);
+
+    $this->actingAs($admin)
+        ->put(route('admin.sessions.update', $session), [
+            'title' => $session->title,
+            'session_slot_id' => $slot->id,
+        ])
+        ->assertSessionHas('success');
+
+    expect($session->fresh()->session_slot_id)->toBe($slot->id)
+        // The booking follows the slot: the slot is the source of truth.
+        ->and(SessionSchedule::where('conference_session_id', $session->id)->sole()->room_id)
+        ->toBe($room->id);
+
+    Notification::assertSentTo($partnerUser, SessionScheduledNotification::class);
+});
+
+it('tells the partner when the team clear their time from the review screen', function () {
+    Notification::fake();
+
+    ['partnerUser' => $partnerUser, 'partner' => $partner, 'admin' => $admin,
+        'conference' => $conference, 'slot' => $slot, 'room' => $room] = journeyFixture();
+
+    $slot->update(['default_room_id' => $room->id]);
+
+    $session = ConferenceSession::factory()->submitted()->create([
+        'partner_id' => $partner->id,
+        'conference_id' => $conference->id,
+    ]);
+
+    $this->actingAs($admin)
+        ->put(route('admin.sessions.update', $session), [
+            'title' => $session->title,
+            'session_slot_id' => $slot->id,
+        ])
+        ->assertSessionHas('success');
+
+    $this->actingAs($admin)
+        ->put(route('admin.sessions.update', $session), [
+            'title' => $session->title,
+            'session_slot_id' => null,
+        ])
+        ->assertSessionHas('success');
+
+    expect($session->fresh()->session_slot_id)->toBeNull()
+        ->and(SessionSchedule::where('conference_session_id', $session->id)->count())->toBe(0);
+
+    Notification::assertSentTo($partnerUser, SessionUnscheduledNotification::class);
+});
+
+it('says nothing to the partner when the team edit only the title', function () {
+    Notification::fake();
+
+    ['partnerUser' => $partnerUser, 'partner' => $partner, 'admin' => $admin,
+        'conference' => $conference] = journeyFixture();
+
+    $session = ConferenceSession::factory()->submitted()->create([
+        'partner_id' => $partner->id,
+        'conference_id' => $conference->id,
+    ]);
+
+    $this->actingAs($admin)
+        ->put(route('admin.sessions.update', $session), [
+            'title' => 'Retitled by the programme team',
+            'session_slot_id' => null,
+        ])
+        ->assertSessionHas('success');
+
+    Notification::assertNotSentTo($partnerUser, SessionScheduledNotification::class);
+    Notification::assertNotSentTo($partnerUser, SessionUnscheduledNotification::class);
+});

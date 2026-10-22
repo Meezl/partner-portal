@@ -43,6 +43,25 @@ class SessionSchedule extends Model
         return $this->hasMany(ResourceAssignment::class);
     }
 
+    /**
+     * Where this booking puts the session, for telling a partner what they
+     * have or what they are losing — "MH1 on Mon 1 Mar, 11:30–13:00".
+     *
+     * Null when the booking has no room or time to describe.
+     */
+    public function placementLabel(): ?string
+    {
+        $this->loadMissing(['room', 'timeSlot']);
+
+        if (! $this->room || ! $this->timeSlot) {
+            return null;
+        }
+
+        return $this->room->name.' on '.$this->timeSlot->date->format('D j M')
+            .', '.substr((string) $this->timeSlot->start_time, 0, 5)
+            .'–'.substr((string) $this->timeSlot->end_time, 0, 5);
+    }
+
     public function resources(): HasMany
     {
         return $this->resourceAssignments();
