@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { Link } from '@inertiajs/vue3';
+import { Link, router } from '@inertiajs/vue3';
 import {
     CalendarDays,
+    CheckCircle2,
     Clock,
     MapPin,
     Users,
@@ -22,6 +23,14 @@ const props = defineProps<{
     partner: Partner;
     schedules: SessionSchedule[];
 }>();
+
+/**
+ * Confirming says the allocated room and time work. The team moving the
+ * session clears it again, so the prompt comes back for the new time.
+ */
+function confirmTime(schedule: SessionSchedule) {
+    router.put(`/partner/schedule/${schedule.id}/confirm`, {}, { preserveScroll: true });
+}
 
 const groupedByDate = computed(() => {
     const groups: Record<string, SessionSchedule[]> = {};
@@ -127,9 +136,25 @@ function formatTime(time: string) {
                                 </div>
 
                                 <div class="flex flex-col items-end gap-2">
-                                    <Badge :variant="schedule.status === 'confirmed' ? 'default' : 'secondary'" class="capitalize">
-                                        {{ schedule.status }}
+                                    <Badge
+                                        v-if="schedule.confirmed_by_partner_at"
+                                        variant="default"
+                                        class="flex items-center gap-1"
+                                    >
+                                        <CheckCircle2 class="h-3 w-3" />
+                                        You confirmed this time
                                     </Badge>
+                                    <Badge v-else variant="secondary">Awaiting your confirmation</Badge>
+
+                                    <Button
+                                        v-if="!schedule.confirmed_by_partner_at"
+                                        size="sm"
+                                        @click="confirmTime(schedule)"
+                                    >
+                                        <CheckCircle2 class="mr-1 h-4 w-4" />
+                                        Confirm this time
+                                    </Button>
+
                                     <Link :href="`/partner/change-requests/create?session=${schedule.conference_session_id}`">
                                         <Button variant="outline" size="sm">
                                             <AlertCircle class="mr-1 h-4 w-4" />

@@ -8,10 +8,26 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['conference_session_id', 'room_id', 'time_slot_id', 'assigned_by', 'status', 'notes'])]
+#[Fillable(['conference_session_id', 'room_id', 'time_slot_id', 'assigned_by', 'confirmed_by_partner_at', 'status', 'notes'])]
 class SessionSchedule extends Model
 {
     use HasFactory;
+
+    /**
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'confirmed_by_partner_at' => 'datetime',
+        ];
+    }
+
+    /** Whether the partner has said the allocated room and time work for them. */
+    public function confirmedByPartner(): bool
+    {
+        return $this->confirmed_by_partner_at !== null;
+    }
 
     public function session(): BelongsTo
     {

@@ -199,6 +199,8 @@ class SchedulingController extends Controller
             'room_id' => $validated['room_id'],
             'time_slot_id' => $validated['time_slot_id'],
             'assigned_by' => $request->user()->id,
+            // The partner confirmed the old time, not this one.
+            'confirmed_by_partner_at' => null,
             'status' => 'scheduled',
         ]);
 

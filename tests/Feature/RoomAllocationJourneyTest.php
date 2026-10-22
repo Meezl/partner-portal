@@ -385,8 +385,9 @@ it('words a first placement as scheduled and a move as a change to the requested
         ->toContain('The AHAIC programme team have changed the date and time you requested for your session.')
         ->toContain('Now scheduled for:')
         ->toContain('Previously: MH1 on Mon 1 Mar, 11:30–13:00')
+        ->toContain('Please confirm this works for you from your schedule page.')
         ->and(collect($moved->outroLines))
-        ->toContain('If this time does not work for you, please submit a change request through the portal.');
+        ->toContain('If this time does not work for you, please submit a change request through the portal instead of confirming.');
 });
 
 it('does not call the first slot the team set a change to the requested time', function () {

@@ -313,6 +313,8 @@ export interface SessionSchedule {
     room_id: number;
     time_slot_id: number;
     status: string;
+    /** When the partner confirmed this room and time; null until they do. */
+    confirmed_by_partner_at: string | null;
     notes: string | null;
     room?: Room;
     time_slot?: TimeSlot;

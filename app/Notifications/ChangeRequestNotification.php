@@ -40,9 +40,14 @@ class ChangeRequestNotification extends Notification implements ShouldQueue
      */
     private function partnerMail(): MailMessage
     {
+        $noted = $this->changeRequest->status === ChangeRequestStatus::Noted;
         $approved = $this->changeRequest->status === ChangeRequestStatus::Approved;
         $session = $this->changeRequest->session;
         $isTime = $this->changeRequest->type === ChangeRequestType::Time;
+
+        if ($noted) {
+            return $this->notedMail($session);
+        }
 
         $message = (new MailMessage)
             ->subject(sprintf(
@@ -128,6 +133,27 @@ class ChangeRequestNotification extends Notification implements ShouldQueue
     /**
      * Render a stored slot snapshot as "Parallel 2.1 - Mon, 1 Mar 2027 · 14:00-15:30".
      */
+    /**
+     * A request described in words rather than by picking a slot: nothing has
+     * moved, so the partner is told it is with the team rather than done.
+     */
+    private function notedMail(?object $session): MailMessage
+    {
+        $message = (new MailMessage)
+            ->subject('Change request noted - '.($session?->title ?? 'AHAIC session'))
+            ->greeting('Hello!')
+            ->line('The AHAIC partnerships team have noted your request and will action it.')
+            ->line('Session: '.($session?->title ?? 'N/A'))
+            ->line('You asked for: '.($this->changeRequest->requested_value['note'] ?? 'a change'))
+            ->line('Your session time has not changed yet. If the team reschedule it, you will be sent the new date and time to confirm.');
+
+        if ($this->changeRequest->resolution_notes) {
+            $message->line('Notes from the team: '.$this->changeRequest->resolution_notes);
+        }
+
+        return $message->action('View your sessions', url('/partner/sessions'));
+    }
+
     private function slotLine(?array $value): ?string
     {
         if (! $value) {

@@ -45,12 +45,19 @@ class SessionScheduleSynchroniser
 
             $timeSlot = $this->timeSlotFor($slot);
 
+            $existing = SessionSchedule::firstWhere('conference_session_id', $session->id);
+            $moved = $existing
+                && ($existing->room_id !== $slot->default_room_id || $existing->time_slot_id !== $timeSlot->id);
+
             return SessionSchedule::updateOrCreate(
                 ['conference_session_id' => $session->id],
                 [
                     'room_id' => $slot->default_room_id,
                     'time_slot_id' => $timeSlot->id,
                     'assigned_by' => $assignedBy,
+                    // A partner confirmed the time they were given, so moving
+                    // the booking puts it back to unconfirmed.
+                    ...($moved ? ['confirmed_by_partner_at' => null] : []),
                     'status' => 'scheduled',
                 ],
             );

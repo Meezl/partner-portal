@@ -64,6 +64,7 @@ Route::middleware(['auth', 'verified', 'role:partner', 'partner.exists'])->prefi
 
     // Schedule View (Phase 7) — read-only, available after scheduling
     Route::get('/schedule', [ScheduleController::class, 'index'])->name('schedule.index');
+    Route::put('/schedule/{schedule}/confirm', [ScheduleController::class, 'confirm'])->name('schedule.confirm');
 
     // Change Requests (Phase 7)
     Route::get('/change-requests', [ChangeRequestController::class, 'index'])->name('change-requests.index');

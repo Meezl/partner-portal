@@ -57,11 +57,12 @@ class SessionScheduledNotification extends Notification implements ShouldQueue
         $mail->line('Date: '.($timeSlot->date?->format('F j, Y') ?? 'TBD'))
             ->line('Time: '.($timeSlot->start_time ?? 'TBD').' - '.($timeSlot->end_time ?? 'TBD'))
             ->line('Room: '.($room->name ?? 'TBD'))
-            ->action('View Schedule', url('/partner/schedule'));
+            ->line('Please confirm this works for you from your schedule page.')
+            ->action('Confirm your time', url('/partner/schedule'));
 
         return $mail->line($this->timeChanged
-            ? 'If this time does not work for you, please submit a change request through the portal.'
-            : 'If you have any concerns about this schedule, please submit a change request through the portal.');
+            ? 'If this time does not work for you, please submit a change request through the portal instead of confirming.'
+            : 'If you have any concerns about this schedule, please submit a change request through the portal instead of confirming.');
     }
 
     public function toArray(object $notifiable): array

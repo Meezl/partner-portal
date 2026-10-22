@@ -55,7 +55,20 @@ class ChangeRequestController extends Controller
             'resolution_notes' => ['nullable', 'string', 'max:1000'],
         ]);
 
-        if ($changeRequest->type === ChangeRequestType::Time) {
+        $noted = $changeRequest->type === ChangeRequestType::Time
+            && ! isset($changeRequest->requested_value['session_slot_id']);
+
+        if ($noted) {
+            // Raised from the free-text form, so there is no slot to promote.
+            // Saying "approved" would tell the partner their time had moved
+            // when nothing has: it is logged for the team to action by hand.
+            $changeRequest->update([
+                'status' => ChangeRequestStatus::Noted,
+                'reviewed_by' => $request->user()->id,
+                'reviewed_at' => now(),
+                'resolution_notes' => $validated['resolution_notes'] ?? null,
+            ]);
+        } elseif ($changeRequest->type === ChangeRequestType::Time) {
             // Promotes the held slot to a confirmed claim on the session.
             $this->timeRequests->approve($changeRequest, $request->user(), $validated['resolution_notes'] ?? null);
         } else {
@@ -74,14 +87,16 @@ class ChangeRequestController extends Controller
             'auditable_id' => $changeRequest->id,
             'old_values' => ['status' => ChangeRequestStatus::Pending->value],
             'new_values' => [
-                'status' => ChangeRequestStatus::Approved->value,
-                'applied' => $changeRequest->requested_value,
+                'status' => $noted ? ChangeRequestStatus::Noted->value : ChangeRequestStatus::Approved->value,
+                'applied' => $noted ? null : $changeRequest->requested_value,
             ],
         ]);
 
         $this->notifier->notifyDecision($changeRequest->refresh());
 
-        return back()->with('success', 'Change request approved. The partner and the team have been notified.');
+        return back()->with('success', $noted
+            ? 'Change request noted. The partner has been told the team will action it — the session time has not moved.'
+            : 'Change request approved. The partner and the team have been notified.');
     }
 
     /**

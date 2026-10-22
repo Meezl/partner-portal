@@ -78,6 +78,14 @@ class SessionReviewController extends Controller
             return back()->with('error', 'This session is still a draft — the partner has not submitted it yet.');
         }
 
+        // Session content keeps changing right up to allocation, so approving
+        // it only means something once the session has a room and a time.
+        // Approving earlier also drops it off the allocation queue, which
+        // filters on submitted.
+        if (! $session->sessionSchedule()->exists()) {
+            return back()->with('error', 'Allocate a room and time on the scheduling board before approving this session.');
+        }
+
         $validated = $request->validate([
             'notes' => ['nullable', 'string', 'max:1000'],
         ]);

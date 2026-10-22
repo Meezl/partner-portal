@@ -83,11 +83,25 @@ it('filters the queue by status', function () {
         ->assertInertia(fn (Assert $page) => $page->has('sessions', 2));
 });
 
-it('approves a submitted session and emails the partner', function () {
+it('approves a session once it has a room, and emails the partner', function () {
     Notification::fake();
 
-    ['session' => $session, 'partnerUser' => $partnerUser] = reviewFixture();
+    ['session' => $session, 'partnerUser' => $partnerUser, 'conference' => $conference] = reviewFixture();
     $admin = User::factory()->admin()->create();
+
+    // Content keeps changing until the session is placed, so approval only
+    // means something once a room and time are allocated.
+    $this->actingAs($admin)
+        ->post("/admin/sessions/{$session->id}/approve", ['notes' => 'Great fit for the track.'])
+        ->assertSessionHas('error');
+
+    expect($session->fresh()->status)->not->toBe(SessionStatus::Confirmed);
+
+    SessionSchedule::factory()->create([
+        'conference_session_id' => $session->id,
+        'room_id' => Room::factory()->create(['conference_id' => $conference->id])->id,
+        'time_slot_id' => TimeSlot::factory()->create(['conference_id' => $conference->id])->id,
+    ]);
 
     $this->actingAs($admin)
         ->post("/admin/sessions/{$session->id}/approve", ['notes' => 'Great fit for the track.'])
