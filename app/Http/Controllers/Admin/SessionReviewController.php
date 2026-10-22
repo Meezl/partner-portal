@@ -183,7 +183,13 @@ class SessionReviewController extends Controller
         $schedule = $session->sessionSchedule;
 
         if ($schedule) {
-            $user->notify(new SessionScheduledNotification($schedule->load(['session.partner', 'room', 'timeSlot'])));
+            $user->notify(new SessionScheduledNotification(
+                $schedule->load(['session.partner', 'room', 'timeSlot']),
+                // Replacing a slot the partner already had is a change to the
+                // time they asked for; setting the first one is not.
+                timeChanged: $previousSlotId !== null,
+                previousPlacement: $previousPlacement,
+            ));
 
             return;
         }

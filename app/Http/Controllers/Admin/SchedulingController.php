@@ -186,6 +186,8 @@ class SchedulingController extends Controller
             return back()->with('error', $error);
         }
 
+        $previousPlacement = $schedule->placementLabel();
+
         $unchanged = $schedule->room_id === (int) $validated['room_id']
             && $schedule->time_slot_id === (int) $validated['time_slot_id'];
 
@@ -202,7 +204,11 @@ class SchedulingController extends Controller
 
         $session->update(['status' => SessionStatus::Scheduled]);
         $this->reconcileSlot($session, $validated, TimeSlot::find($validated['time_slot_id']));
-        $this->notifyPartner($schedule->fresh(['session.partner.user', 'room', 'timeSlot']));
+        $this->notifyPartner(
+            $schedule->fresh(['session.partner.user', 'room', 'timeSlot']),
+            timeChanged: true,
+            previousPlacement: $previousPlacement,
+        );
 
         return back()->with('success', 'Schedule updated successfully.');
     }
@@ -365,12 +371,17 @@ class SchedulingController extends Controller
         ]);
     }
 
-    private function notifyPartner(SessionSchedule $schedule): void
-    {
+    private function notifyPartner(
+        SessionSchedule $schedule,
+        bool $timeChanged = false,
+        ?string $previousPlacement = null,
+    ): void {
         $partnerUser = $schedule->session?->partner?->user;
 
         if ($partnerUser) {
-            $partnerUser->notify(new SessionScheduledNotification($schedule));
+            $partnerUser->notify(
+                new SessionScheduledNotification($schedule, $timeChanged, $previousPlacement),
+            );
         }
     }
 }

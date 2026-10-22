@@ -336,3 +336,83 @@ it('says nothing to the partner when the team edit only the title', function () 
     Notification::assertNotSentTo($partnerUser, SessionScheduledNotification::class);
     Notification::assertNotSentTo($partnerUser, SessionUnscheduledNotification::class);
 });
+
+it('words a first placement as scheduled and a move as a change to the requested time', function () {
+    Notification::fake();
+
+    ['partnerUser' => $partnerUser, 'partner' => $partner, 'admin' => $admin,
+        'conference' => $conference, 'room' => $room, 'timeSlot' => $timeSlot] = journeyFixture();
+
+    $later = TimeSlot::factory()->create([
+        'conference_id' => $conference->id,
+        'date' => '2027-03-02',
+        'start_time' => '14:00:00',
+        'end_time' => '15:30:00',
+    ]);
+
+    $session = ConferenceSession::factory()->submitted()->create([
+        'partner_id' => $partner->id,
+        'conference_id' => $conference->id,
+    ]);
+
+    $this->actingAs($admin)
+        ->post(route('admin.scheduling.assign', $session), [
+            'room_id' => $room->id,
+            'time_slot_id' => $timeSlot->id,
+        ])
+        ->assertSessionHas('success');
+
+    $this->actingAs($admin)
+        ->put(route('admin.scheduling.update', $session), [
+            'room_id' => $room->id,
+            'time_slot_id' => $later->id,
+        ])
+        ->assertSessionHas('success');
+
+    $mails = Notification::sent($partnerUser, SessionScheduledNotification::class)
+        ->map(fn (SessionScheduledNotification $notification) => $notification->toMail($partnerUser));
+
+    // The first placement is not a change to anything.
+    expect($mails->first()->subject)->toBe('Your Session Has Been Scheduled')
+        ->and(collect($mails->first()->introLines))
+        ->toContain('Your session has been scheduled for the AHAIC conference.');
+
+    // The move says so, and says where it was.
+    $moved = $mails->last();
+
+    expect($moved->subject)->toBe('Your requested session time has been changed')
+        ->and(collect($moved->introLines))
+        ->toContain('The AHAIC programme team have changed the date and time you requested for your session.')
+        ->toContain('Now scheduled for:')
+        ->toContain('Previously: MH1 on Mon 1 Mar, 11:30–13:00')
+        ->and(collect($moved->outroLines))
+        ->toContain('If this time does not work for you, please submit a change request through the portal.');
+});
+
+it('does not call the first slot the team set a change to the requested time', function () {
+    Notification::fake();
+
+    ['partnerUser' => $partnerUser, 'partner' => $partner, 'admin' => $admin,
+        'conference' => $conference, 'slot' => $slot, 'room' => $room] = journeyFixture();
+
+    $slot->update(['default_room_id' => $room->id]);
+
+    $session = ConferenceSession::factory()->submitted()->create([
+        'partner_id' => $partner->id,
+        'conference_id' => $conference->id,
+    ]);
+
+    // The session had no slot, so this is the team setting one, not moving it.
+    $this->actingAs($admin)
+        ->put(route('admin.sessions.update', $session), [
+            'title' => $session->title,
+            'session_slot_id' => $slot->id,
+        ])
+        ->assertSessionHas('success');
+
+    $mail = Notification::sent($partnerUser, SessionScheduledNotification::class)
+        ->first()
+        ->toMail($partnerUser);
+
+    expect($mail->subject)->toBe('Your Session Has Been Scheduled');
+});
