@@ -6,7 +6,6 @@ import InputError from '@/components/InputError.vue';
 import SessionSlotPicker from '@/components/shared/SessionSlotPicker.vue';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
@@ -32,11 +31,6 @@ const form = useForm({
     expected_participants: null as string | null,
     session_slot_id: null as number | null,
     slot_reason: '',
-    special_requirements: {
-        av_equipment: false,
-        translation: false,
-        catering: false,
-    },
 });
 
 const descriptionWordCount = computed(() => {
@@ -222,45 +216,12 @@ const sessionFormats: { value: SessionFormat; label: string }[] = [
                 </CardContent>
             </Card>
 
-            <Card>
-                <CardHeader>
-                    <CardTitle>Special Requirements</CardTitle>
-                    <CardDescription>Equipment, translation, and catering needs.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <div class="grid gap-6 sm:grid-cols-2">
-                        <div class="flex items-center gap-3">
-                            <Checkbox
-                                id="av_equipment"
-                                v-model="form.special_requirements.av_equipment"
-                            />
-                            <Label for="av_equipment" class="cursor-pointer">AV Equipment Required</Label>
-                        </div>
-
-                        <div class="flex items-center gap-3">
-                            <Checkbox
-                                id="translation"
-                                v-model="form.special_requirements.translation"
-                            />
-                            <Label for="translation" class="cursor-pointer">Translation Services</Label>
-                        </div>
-
-                        <div class="flex items-center gap-3">
-                            <Checkbox
-                                id="catering"
-                                v-model="form.special_requirements.catering"
-                            />
-                            <Label for="catering" class="cursor-pointer">Catering Required</Label>
-                        </div>
-                    </div>
-                </CardContent>
-                <CardFooter class="flex justify-end">
-                    <Button type="submit" :disabled="form.processing">
-                        <Save class="mr-2 h-4 w-4" />
-                        Create Session
-                    </Button>
-                </CardFooter>
-            </Card>
+            <div class="flex justify-end">
+                <Button type="submit" :disabled="form.processing">
+                    <Save class="mr-2 h-4 w-4" />
+                    Create Session
+                </Button>
+            </div>
         </form>
     </div>
 </template>

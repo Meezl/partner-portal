@@ -22,7 +22,6 @@ class SessionRequest extends FormRequest
             'format' => ['required', 'string', new Enum(SessionFormat::class)],
             'co_hosts' => ['nullable', 'array'],
             'expected_participants' => ['nullable', new Enum(ParticipantRange::class)],
-            'special_requirements' => ['nullable', 'array'],
         ];
     }
 }

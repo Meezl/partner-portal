@@ -248,6 +248,7 @@ export interface ConferenceSession {
     expected_participants: string | null;
     /** Retired from the session form; kept for sessions captured earlier. */
     is_open: boolean;
+    /** Retired from the session form; kept for sessions captured earlier. */
     special_requirements: Record<string, unknown> | null;
     status: SessionStatus;
     submitted_at: string | null;

@@ -106,17 +106,6 @@ function boardAssignment(session: ReviewSession): { room: string; time: string |
     };
 }
 
-/** Everything the partner filled in, laid out for review. */
-function requirementRows(session: ReviewSession): { label: string; value: string }[] {
-    const reqs = (session.special_requirements ?? {}) as Record<string, unknown>;
-
-    return [
-        { label: 'AV equipment', value: reqs.av_equipment ? 'Required' : 'Not required' },
-        { label: 'Translation', value: reqs.translation ? 'Required' : 'Not required' },
-        { label: 'Catering', value: reqs.catering ? 'Required' : 'Not required' },
-    ];
-}
-
 /* ---------------- Approve ---------------- */
 
 const approving = ref<ReviewSession | null>(null);
@@ -325,20 +314,6 @@ const submittedCount = computed(() => props.counts.submitted ?? 0);
                         <p class="text-muted-foreground">
                             {{ session.co_hosts?.length ? session.co_hosts.join(', ') : '—' }}
                         </p>
-                    </div>
-                </div>
-
-                <div>
-                    <h4 class="mb-2 font-medium">Special requirements</h4>
-                    <div class="grid gap-2 sm:grid-cols-4">
-                        <div
-                            v-for="row in requirementRows(session)"
-                            :key="row.label"
-                            class="bg-muted/40 rounded-md border p-2"
-                        >
-                            <div class="text-muted-foreground text-xs">{{ row.label }}</div>
-                            <div class="capitalize">{{ row.value }}</div>
-                        </div>
                     </div>
                 </div>
 

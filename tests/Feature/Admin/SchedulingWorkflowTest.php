@@ -159,7 +159,7 @@ it('prevents room conflicts and partner overlap conflicts while scheduling', fun
         ->assertSessionHas('error');
 });
 
-it('prevents assigning sessions into rooms that do not fit capacity or supported format', function () {
+it('prevents assigning sessions into rooms not marked for their format', function () {
     [
         'conference' => $conference,
         'admin' => $admin,

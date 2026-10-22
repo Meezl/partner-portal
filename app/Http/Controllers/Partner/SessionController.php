@@ -83,7 +83,6 @@ class SessionController extends Controller
                 'format' => $validated['format'],
                 'co_hosts' => $validated['co_hosts'] ?? [],
                 'expected_participants' => $validated['expected_participants'] ?? null,
-                'special_requirements' => $validated['special_requirements'] ?? [],
                 'status' => SessionStatus::Draft,
             ]);
 
@@ -156,7 +155,6 @@ class SessionController extends Controller
                 'format' => $validated['format'],
                 'co_hosts' => $validated['co_hosts'] ?? [],
                 'expected_participants' => $validated['expected_participants'] ?? null,
-                'special_requirements' => $validated['special_requirements'] ?? [],
             ]);
 
             // A different date/time opens a fresh approval request instead of
@@ -213,10 +211,6 @@ class SessionController extends Controller
             'expected_participants' => ['nullable', Rule::enum(ParticipantRange::class)],
             'session_slot_id' => ['nullable', 'integer', 'exists:session_slots,id'],
             'slot_reason' => ['nullable', 'string', 'max:1000'],
-            'special_requirements' => ['nullable', 'array'],
-            'special_requirements.av_equipment' => ['nullable', 'boolean'],
-            'special_requirements.translation' => ['nullable', 'boolean'],
-            'special_requirements.catering' => ['nullable', 'boolean'],
         ]);
 
         // The description is published to the website, the mobile app and the

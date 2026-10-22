@@ -131,10 +131,10 @@ it('completes onboarding sections and exposes the review page with computed prog
             'title' => 'Scaling Community Health Financing',
             'description' => 'A practical discussion on financing primary care at scale.',
             'format' => 'panel',
-            // Retired from the form; a stale client posting it is ignored.
-            'organizers' => ['Example Org'],
             'co_hosts' => ['Partner Co-host'],
             'expected_participants' => '100-150',
+            // Retired from the form; a stale client posting these is ignored.
+            'organizers' => ['Example Org'],
             'special_requirements' => [
                 'av_equipment' => true,
                 'translation' => false,
@@ -148,7 +148,7 @@ it('completes onboarding sections and exposes the review page with computed prog
     expect($session->status)->toBe(SessionStatus::Draft)
         ->and($session->co_hosts)->toBe(['Partner Co-host'])
         ->and($session->organizers)->toBeNull()
-        ->and($session->special_requirements['av_equipment'])->toBeTrue()
+        ->and($session->special_requirements)->toBeNull()
         ->and($partner->fresh()->onboarding_progress['sessions'])->toBe(100);
 
     $this

@@ -47,8 +47,9 @@ class RoomAllocationMatrixService
                                         'partner_id' => $schedule->session->partner_id,
                                         'title' => $schedule->session->title,
                                         'format' => $schedule->session->format?->value ?? (string) $schedule->session->format,
-                                        'expected_participants' => $schedule->session->expected_participants,
-                                        'special_requirements' => $schedule->session->special_requirements,
+                                        'expected_participants' => $schedule->session->expected_participants?->value
+                                            ?? $schedule->session->expected_participants,
+                                        'partner_name' => $schedule->session->partner?->organization_name,
                                     ] : null,
                                     'fit_warnings' => $warnings,
                                 ] : null,
