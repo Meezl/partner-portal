@@ -14,6 +14,7 @@ use App\Models\TimeSlot;
 use App\Models\User;
 use App\Notifications\ChangeRequestNotification;
 use Illuminate\Support\Facades\Notification;
+use Inertia\Testing\AssertableInertia as Inertia;
 
 /**
  * A time the team allocate is not settled until the partner says it works, and
@@ -191,4 +192,60 @@ it('still applies a time request raised by picking a slot', function () {
     expect($changeRequest->fresh()->status)->toBe(ChangeRequestStatus::Approved)
         ->and(ConferenceSession::where('title', 'Picked a slot')->sole()->session_slot_id)
         ->toBe($slot->id);
+});
+
+it('shows the team who has not confirmed, and clears them once they do', function () {
+    Notification::fake();
+
+    ['partnerUser' => $partnerUser, 'admin' => $admin, 'session' => $session,
+        'partner' => $partner, 'room' => $room, 'timeSlot' => $timeSlot] = confirmationFixture();
+
+    $this->actingAs($admin)->post(route('admin.scheduling.assign', $session), [
+        'room_id' => $room->id,
+        'time_slot_id' => $timeSlot->id,
+    ]);
+
+    $this->actingAs($admin)
+        ->get(route('admin.scheduling.index'))
+        ->assertOk()
+        ->assertInertia(fn (Inertia $page) => $page
+            ->where('allocationSummary.awaiting_confirmation', 1)
+            ->has('awaitingConfirmation', 1)
+            ->where('awaitingConfirmation.0.partner_name', $partner->organization_name)
+            ->where('awaitingConfirmation.0.session_title', $session->title)
+            ->where('allocationDays.0.slots.0.cells.0.schedule.confirmed_by_partner', false),
+        );
+
+    $this->actingAs($partnerUser)
+        ->put(route('partner.schedule.confirm', SessionSchedule::sole()));
+
+    $this->actingAs($admin)
+        ->get(route('admin.scheduling.index'))
+        ->assertInertia(fn (Inertia $page) => $page
+            ->where('allocationSummary.awaiting_confirmation', 0)
+            ->has('awaitingConfirmation', 0)
+            ->where('allocationDays.0.slots.0.cells.0.schedule.confirmed_by_partner', true),
+        );
+});
+
+it('lets the partnerships team see the allocation board too', function () {
+    ['admin' => $admin, 'session' => $session, 'room' => $room, 'timeSlot' => $timeSlot] = confirmationFixture();
+
+    $this->actingAs($admin)->post(route('admin.scheduling.assign', $session), [
+        'room_id' => $room->id,
+        'time_slot_id' => $timeSlot->id,
+    ]);
+
+    $this->actingAs(User::factory()->partnerships()->create())
+        ->get(route('admin.scheduling.index'))
+        ->assertOk()
+        ->assertInertia(fn (Inertia $page) => $page
+            ->component('Admin/Scheduling/Index')
+            ->where('allocationSummary.awaiting_confirmation', 1),
+        );
+
+    // Finance have no business on the board.
+    $this->actingAs(User::factory()->finance()->create())
+        ->get(route('admin.scheduling.index'))
+        ->assertForbidden();
 });

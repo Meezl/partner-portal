@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\ConferenceSession;
 use App\Models\Room;
+use App\Models\SessionSchedule;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
@@ -42,6 +43,8 @@ class RoomAllocationMatrixService
                                     'time_slot_id' => $schedule->time_slot_id,
                                     'status' => $schedule->status,
                                     'notes' => $schedule->notes,
+                                    'confirmed_by_partner' => $schedule->confirmedByPartner(),
+                                    'confirmed_by_partner_at' => $schedule->confirmed_by_partner_at?->toDateTimeString(),
                                     'session' => $schedule->session ? [
                                         'id' => $schedule->session->id,
                                         'partner_id' => $schedule->session->partner_id,
@@ -103,6 +106,10 @@ class RoomAllocationMatrixService
 
         $totalRoomSlots = max($activeRooms->count() * max($timeSlots->count(), 1), 1);
 
+        $awaitingConfirmation = $schedules->filter(
+            fn (SessionSchedule $schedule) => ! $schedule->confirmedByPartner(),
+        );
+
         return [
             'summary' => [
                 'active_rooms' => $activeRooms->count(),
@@ -110,9 +117,25 @@ class RoomAllocationMatrixService
                 'scheduled_sessions' => $schedules->count(),
                 'unscheduled_sessions' => $unscheduledCount,
                 'occupancy_rate' => (int) round(($schedules->count() / $totalRoomSlots) * 100),
+                'awaiting_confirmation' => $awaitingConfirmation->count(),
             ],
             'days' => $days->all(),
             'room_stats' => $roomStats->all(),
+            // Who the team are still waiting on, so chasing does not mean
+            // reading every cell on the board.
+            'awaiting_confirmation' => $awaitingConfirmation
+                ->map(fn (SessionSchedule $schedule) => [
+                    'schedule_id' => $schedule->id,
+                    'conference_session_id' => $schedule->conference_session_id,
+                    'session_title' => $schedule->session?->title,
+                    'partner_name' => $schedule->session?->partner?->organization_name,
+                    'room_name' => $schedule->room?->name,
+                    'placement' => $schedule->placementLabel(),
+                    'allocated_at' => $schedule->updated_at?->toDateTimeString(),
+                ])
+                ->sortBy('partner_name')
+                ->values()
+                ->all(),
         ];
     }
 

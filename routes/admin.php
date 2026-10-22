@@ -75,8 +75,9 @@ Route::middleware(['auth', 'verified', 'role:super_admin,admin,finance,programme
         Route::put('/finance/payments/{payment}/reject', [FinanceController::class, 'reject'])->name('finance.payments.reject');
     });
 
-    // Scheduling (Phase 6)
-    Route::middleware(['role:super_admin,admin,programme,pco'])->group(function () {
+    // Scheduling (Phase 6) — the partnerships team allocate rooms alongside
+    // the admins, and chase the partners who have not confirmed their time.
+    Route::middleware(['role:super_admin,admin,partnerships,programme,pco'])->group(function () {
         Route::get('/scheduling', [SchedulingController::class, 'index'])->name('scheduling.index');
         Route::get('/scheduling/sessions', [SchedulingController::class, 'sessions'])->name('scheduling.sessions');
         Route::post('/scheduling/sessions/{session}/assign', [SchedulingController::class, 'assignSession'])->name('scheduling.assign');

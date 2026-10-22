@@ -57,6 +57,7 @@ class SchedulingController extends Controller
             'allocationSummary' => $matrix['summary'],
             'allocationDays' => $matrix['days'],
             'roomStats' => $matrix['room_stats'],
+            'awaitingConfirmation' => $matrix['awaiting_confirmation'],
         ]);
     }
 

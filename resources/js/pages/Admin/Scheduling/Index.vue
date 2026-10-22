@@ -3,6 +3,7 @@ import { Head, router, useForm } from '@inertiajs/vue3';
 import {
     CalendarClock,
     CalendarDays,
+    CheckCircle2,
     Plus,
     Clock,
     MapPin,
@@ -75,6 +76,8 @@ type AllocationCell = {
                   | 'expected_participants'
               >;
               fit_warnings?: string[];
+              confirmed_by_partner?: boolean;
+              confirmed_by_partner_at?: string | null;
           })
         | null;
 };
@@ -125,9 +128,20 @@ const props = defineProps<{
         scheduled_sessions: number;
         unscheduled_sessions: number;
         occupancy_rate: number;
+        awaiting_confirmation: number;
     };
     allocationDays: AllocationDay[];
     roomStats: RoomStat[];
+    /** Allocations the partner has not confirmed yet, for chasing. */
+    awaitingConfirmation: {
+        schedule_id: number;
+        conference_session_id: number;
+        session_title: string | null;
+        partner_name: string | null;
+        room_name: string | null;
+        placement: string | null;
+        allocated_at: string | null;
+    }[];
 }>();
 
 const showAssignDialog = ref(false);
@@ -421,7 +435,59 @@ function getPartnerColor(partnerId: number): string {
                     Share of room x slot capacity already allocated.
                 </CardContent>
             </Card>
+
+            <Card>
+                <CardHeader class="pb-3">
+                    <CardDescription>Awaiting confirmation</CardDescription>
+                    <CardTitle class="text-3xl">{{
+                        allocationSummary.awaiting_confirmation
+                    }}</CardTitle>
+                </CardHeader>
+                <CardContent class="text-sm text-muted-foreground">
+                    Allocations the partner has not confirmed yet.
+                </CardContent>
+            </Card>
         </div>
+
+        <!-- Who the team are still waiting on -->
+        <Card v-if="awaitingConfirmation.length > 0">
+            <CardHeader>
+                <CardTitle class="flex items-center gap-2">
+                    <Clock class="h-5 w-5" />
+                    Partners who have not confirmed their time
+                </CardTitle>
+                <CardDescription>
+                    These sessions have a room and a time, but the partner has not
+                    said it works for them yet.
+                </CardDescription>
+            </CardHeader>
+            <CardContent>
+                <ul class="divide-y divide-border/70">
+                    <li
+                        v-for="row in awaitingConfirmation"
+                        :key="row.schedule_id"
+                        class="flex flex-wrap items-center justify-between gap-2 py-2.5 text-sm"
+                    >
+                        <div class="min-w-0">
+                            <p class="font-medium">
+                                {{ row.partner_name ?? 'Unknown partner' }}
+                            </p>
+                            <p class="text-muted-foreground truncate">
+                                {{ row.session_title ?? 'Untitled session' }}
+                            </p>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <span class="text-muted-foreground text-xs">
+                                {{ row.placement ?? row.room_name ?? 'Not placed' }}
+                            </span>
+                            <Badge variant="outline" class="border-amber-400 text-amber-700 dark:text-amber-400">
+                                Awaiting confirmation
+                            </Badge>
+                        </div>
+                    </li>
+                </ul>
+            </CardContent>
+        </Card>
 
         <div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
             <Card>
@@ -622,6 +688,22 @@ function getPartnerColor(partnerId: number): string {
                                                             .expected_participants
                                                     }}
                                                     pax
+                                                </span>
+                                                <span
+                                                    v-if="cell.schedule.confirmed_by_partner"
+                                                    class="flex items-center gap-0.5"
+                                                    title="The partner confirmed this time"
+                                                >
+                                                    <CheckCircle2 class="h-3 w-3" />
+                                                    Confirmed
+                                                </span>
+                                                <span
+                                                    v-else
+                                                    class="flex items-center gap-0.5 font-medium"
+                                                    title="The partner has not confirmed this time yet"
+                                                >
+                                                    <Clock class="h-3 w-3" />
+                                                    Awaiting partner
                                                 </span>
                                             </div>
                                             <div
